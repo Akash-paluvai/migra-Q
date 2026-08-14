@@ -1,36 +1,42 @@
-# Migra-Q Architecture Specification
+# MIGRA-Q Architecture
 
 ## Overview
 
-Migra-Q is designed as an agentic, modular, and extensible database migration assurance platform. It decouples dialect translation from equivalence validation, diagnosis, and repair.
+MIGRA-Q verifies whether migrated SQL logic preserves the source behavior.
+AI may generate a target SQL migration, but MIGRA-Q independently validates it.
 
-```mermaid
-graph TD
-    User([User / CI System]) --> API[FastAPI API Layer]
-    API --> Translator[SQLGlot + LLM Translator]
-    API --> Execution[DuckDB Sandbox Engine]
-    API --> Validator[5-Stage Equivalence Validator]
-    Validator --> Diagnoser[Mismatch Classifier & Root Cause Analyzer]
-    Diagnoser --> Repair[Agentic SQL Repair Patcher]
-    Validator --> Assurance[Assurance Scoring & Quality Gate]
-    Assurance --> Report[Markdown / JSON Scorecard Report]
+## Core Principle
+
+```
+Deterministic Core:          LLM / AI (later phases):
+  - SQL parsing (SQLGlot)      - translation
+  - AST normalization           - explanation
+  - rule extraction             - repair proposal
+  - structural comparison
+  - execution & validation
+  - assurance gating
 ```
 
-## Core Subsystems
+## Current Architecture (Phase 0 + 1)
 
-### 1. Analyzer (`backend/analyzer/`)
-Responsible for parsing source & target SQL into sqlglot AST nodes, computing AST node-level diffs, and extracting business predicate rules.
+```
+┌────────────┐      ┌────────────────┐      ┌────────────┐
+│  Frontend   │─────▶│  FastAPI        │─────▶│ PostgreSQL │
+│  React/TS   │      │  Backend        │      │            │
+└────────────┘      │                │      └────────────┘
+                     │  analyzer/     │
+                     │   parser       │      ┌────────────┐
+                     │   normalizer   │      │ DuckDB     │
+                     │   extractor    │      │ (embedded) │
+                     │   diff         │      └────────────┘
+                     └────────────────┘
+```
 
-### 2. Execution Engine (`backend/execution/`)
-Executes queries safely against embedded in-memory **DuckDB** sandboxes registered with sample data frames, enabling sub-100ms local verification.
+## Services
 
-### 3. Validation Pipeline (`backend/validation/`)
-Runs 5 sequential validation gates:
-1. **Schema Check**: Projection alignment and datatype compatibility.
-2. **Row Check**: Row count matching & MD5 row hashing.
-3. **Aggregate Check**: Numerical invariants (SUM, AVG, MIN, MAX).
-4. **Business Rules**: Predicate logical assertions.
-5. **Edge Cases**: Null semantics, collation, floating-point precision.
-
-### 4. Diagnosis & Repair Agent (`backend/diagnosis/`, `backend/repair/`)
-When a stage fails, the classifier isolates whether it's a schema, null, or join mismatch, and the repair agent synthesizes an AST patch.
+| Service    | Technology          | Purpose                    |
+|------------|---------------------|----------------------------|
+| backend    | Python / FastAPI    | API, SQL analysis          |
+| frontend   | React / Vite / TS   | Minimal status UI          |
+| postgres   | PostgreSQL 16       | Persistent storage         |
+| duckdb     | Embedded library    | Future: migration sandbox  |

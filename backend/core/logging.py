@@ -1,24 +1,33 @@
+"""Structured logging configuration using Python stdlib."""
+
+import logging
 import sys
-from loguru import logger
 
-# Remove default logger handler
-logger.remove()
+from backend.core.config import settings
 
-# Add customized stdout logger
-logger.add(
-    sys.stdout,
-    colorize=True,
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level:7}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    level="INFO",
-)
 
-# Add file logger for persistent records
-logger.add(
-    "logs/migraq.log",
-    rotation="10 MB",
-    retention="14 days",
-    level="DEBUG",
-    encoding="utf-8",
-)
+def setup_logging() -> None:
+    """Configure root logger with structured format."""
+    level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 
-export_logger = logger
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s | %(levelname)-7s | %(name)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+
+    root = logging.getLogger()
+    root.setLevel(level)
+    # Avoid duplicate handlers on repeated calls
+    root.handlers.clear()
+    root.addHandler(handler)
+
+    # Quiet noisy libraries
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Return a named logger for a module."""
+    return logging.getLogger(name)

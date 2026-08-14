@@ -1,9 +1,0 @@
-[
-  {
-    "id": "CASE-001",
-    "source_dialect": "oracle",
-    "target_dialect": "postgres",
-    "source_sql": "SELECT id, NVL(val, 0) FROM t",
-    "expected_target_sql": "SELECT id, COALESCE(val, 0) FROM t"
-  }
-]

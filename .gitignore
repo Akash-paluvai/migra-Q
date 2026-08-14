@@ -3,61 +3,45 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 .pytest_cache/
 .coverage
 htmlcov/
+coverage/
+dist/
+build/
 
-# Virtual Environments
+# Virtual environments
+.venv/
 venv/
 env/
-ENV/
-.venv/
 
 # Environment variables
 .env
-.env.local
-*.env
 
 # Node / Frontend
 node_modules/
-frontend/node_modules/
 frontend/dist/
 frontend/build/
-.npm
-*.log
 
-# Databases & DuckDB
+# Databases
 *.duckdb
-*.duckdb.tmp
+*.duckdb.wal
 *.db
 *.sqlite
 *.sqlite3
 
-# IDE & OS
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+
+# OS
 .DS_Store
 Thumbs.db
 
-# Docker & Logs
+# Logs
 logs/
 *.log
-docker-data/

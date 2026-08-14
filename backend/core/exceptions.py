@@ -1,5 +1,8 @@
-class MigraQException(Exception):
-    """Base exception for all Migra-Q system errors."""
+"""Application-specific exceptions."""
+
+
+class MigraQError(Exception):
+    """Base exception for all Migra-Q errors."""
 
     def __init__(self, message: str, details: dict | None = None):
         super().__init__(message)
@@ -7,31 +10,9 @@ class MigraQException(Exception):
         self.details = details or {}
 
 
-class TranslationException(MigraQException):
-    """Raised when SQL dialect translation fails."""
-
-    pass
+class ParserError(MigraQError):
+    """Raised when SQL parsing fails."""
 
 
-class ParserException(MigraQException):
-    """Raised when SQL syntax parsing fails."""
-
-    pass
-
-
-class ValidationException(MigraQException):
-    """Raised when equivalence validation process encounters an unrecoverable failure."""
-
-    pass
-
-
-class ExecutionSandboxException(MigraQException):
-    """Raised when DuckDB or target database execution encounters a query error."""
-
-    pass
-
-
-class RepairException(MigraQException):
-    """Raised when SQL repair synthesis cannot produce a valid patch."""
-
-    pass
+class AnalyzerError(MigraQError):
+    """Raised when SQL analysis encounters an unrecoverable problem."""
