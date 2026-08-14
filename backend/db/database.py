@@ -1,7 +1,7 @@
 """PostgreSQL connection management via SQLAlchemy 2.x."""
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
@@ -10,6 +10,7 @@ logger = get_logger(__name__)
 
 engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
+Base = declarative_base()
 
 
 def get_db() -> Session:  # type: ignore[misc]
@@ -30,3 +31,13 @@ def check_database_health() -> bool:
     except Exception as exc:
         logger.error("Database health check failed: %s", exc)
         return False
+
+
+def init_db() -> None:
+    """Initialize database tables if connected."""
+    try:
+        import backend.db.models  # noqa: F401
+
+        Base.metadata.create_all(bind=engine)
+    except Exception as exc:
+        logger.warning("Could not initialize database tables: %s", exc)

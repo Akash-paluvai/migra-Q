@@ -4,7 +4,7 @@
   "schema_version": "0.1.0",
   "seed": 42,
   "profile": "dev",
-  "generation_timestamp": "2026-08-14T21:05:29.551234+00:00",
+  "generation_timestamp": "2026-08-14T21:15:01.826267+00:00",
   "row_counts": {
     "customers": 10000,
     "accounts": 40000,

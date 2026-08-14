@@ -42,6 +42,8 @@ frontend/build/
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs & Runtime Execution Artifacts
 logs/
 *.log
+datasets/runtime_results/
+datasets/generated/test_exec/

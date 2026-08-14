@@ -12,31 +12,34 @@ Deterministic Core:          LLM / AI (later phases):
   - SQL parsing (SQLGlot)      - translation
   - AST normalization           - explanation
   - rule extraction             - repair proposal
+  - synthetic lab & benchmarks
+  - execution engine (DuckDB)
   - structural comparison
   - execution & validation
   - assurance gating
 ```
 
-## Current Architecture (Phase 0 + 1)
+## Current Architecture (Phase 0 + Phase 1 + Phase 2 + Phase 3)
 
 ```
 ┌────────────┐      ┌────────────────┐      ┌────────────┐
 │  Frontend   │─────▶│  FastAPI        │─────▶│ PostgreSQL │
-│  React/TS   │      │  Backend        │      │            │
+│  React/TS   │      │  Backend        │      │ (Audit Log)│
 └────────────┘      │                │      └────────────┘
                      │  analyzer/     │
-                     │   parser       │      ┌────────────┐
-                     │   normalizer   │      │ DuckDB     │
-                     │   extractor    │      │ (embedded) │
-                     │   diff         │      └────────────┘
+                     │  lab/          │      ┌────────────┐
+                     │  execution/    │─────▶│ DuckDB     │
+                     │   sandbox      │      │ (Parquet)  │
+                     │   runner       │      └────────────┘
                      └────────────────┘
 ```
 
-## Services
+## Services & Modules
 
-| Service    | Technology          | Purpose                    |
-|------------|---------------------|----------------------------|
-| backend    | Python / FastAPI    | API, SQL analysis          |
-| frontend   | React / Vite / TS   | Minimal status UI          |
-| postgres   | PostgreSQL 16       | Persistent storage         |
-| duckdb     | Embedded library    | Future: migration sandbox  |
+| Module / Service | Technology          | Purpose                                           |
+|------------------|---------------------|---------------------------------------------------|
+| backend.analyzer | Python / SQLGlot    | Deterministic SQL parsing, extraction, AST diff  |
+| backend.lab      | Python / Pandas     | Synthetic dataset & 20 benchmark scenario lab    |
+| backend.execution| Python / DuckDB     | Read-only isolated execution engine & Parquet art |
+| backend          | Python / FastAPI    | API endpoints                                     |
+| postgres         | PostgreSQL 16       | Audit records (`executions` table)               |
