@@ -1,0 +1,361 @@
+{
+  "dataset_id": "dev_42",
+  "generator_version": "0.1.0",
+  "schema_version": "0.1.0",
+  "seed": 42,
+  "profile": "dev",
+  "generation_timestamp": "2026-08-14T21:05:29.551234+00:00",
+  "row_counts": {
+    "customers": 10000,
+    "accounts": 40000,
+    "transactions": 200000,
+    "support_cases": 20000
+  },
+  "table_schemas": {
+    "customers": {
+      "table_name": "customers",
+      "primary_key": [
+        "customer_id"
+      ],
+      "columns": [
+        {
+          "name": "customer_id",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Deterministic primary key"
+        },
+        {
+          "name": "first_name",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "last_name",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "date_of_birth",
+          "data_type": "date",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "gender",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "email",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "phone",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "city",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "state",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "country",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "customer_segment",
+          "data_type": "string",
+          "nullable": false,
+          "description": "MASS, AFFLUENT, PREMIUM"
+        },
+        {
+          "name": "customer_since",
+          "data_type": "date",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "annual_income",
+          "data_type": "float",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "credit_score",
+          "data_type": "int",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "risk_tier",
+          "data_type": "string",
+          "nullable": false,
+          "description": "LOW, MEDIUM, HIGH"
+        },
+        {
+          "name": "status",
+          "data_type": "string",
+          "nullable": false,
+          "description": "ACTIVE, INACTIVE, SUSPENDED"
+        },
+        {
+          "name": "created_at",
+          "data_type": "timestamp",
+          "nullable": false,
+          "description": ""
+        }
+      ]
+    },
+    "accounts": {
+      "table_name": "accounts",
+      "primary_key": [
+        "account_id"
+      ],
+      "columns": [
+        {
+          "name": "account_id",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "customer_id",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "account_type",
+          "data_type": "string",
+          "nullable": false,
+          "description": "SAVINGS, CHECKING, CREDIT, INVESTMENT"
+        },
+        {
+          "name": "opened_at",
+          "data_type": "timestamp",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "closed_at",
+          "data_type": "timestamp",
+          "nullable": true,
+          "description": ""
+        },
+        {
+          "name": "balance",
+          "data_type": "float",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "credit_limit",
+          "data_type": "float",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "status",
+          "data_type": "string",
+          "nullable": false,
+          "description": "ACTIVE, CLOSED, FROZEN"
+        },
+        {
+          "name": "currency",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        }
+      ]
+    },
+    "transactions": {
+      "table_name": "transactions",
+      "primary_key": [
+        "transaction_id"
+      ],
+      "columns": [
+        {
+          "name": "transaction_id",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "account_id",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "customer_id",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "transaction_timestamp",
+          "data_type": "timestamp",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "transaction_type",
+          "data_type": "string",
+          "nullable": false,
+          "description": "PURCHASE, REFUND, TRANSFER, WITHDRAWAL, DEPOSIT, PAYMENT, FEE"
+        },
+        {
+          "name": "amount",
+          "data_type": "float",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "currency",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "merchant_category",
+          "data_type": "string",
+          "nullable": true,
+          "description": ""
+        },
+        {
+          "name": "merchant_id",
+          "data_type": "string",
+          "nullable": true,
+          "description": ""
+        },
+        {
+          "name": "channel",
+          "data_type": "string",
+          "nullable": false,
+          "description": "ONLINE, MOBILE, ATM, BRANCH, POS"
+        },
+        {
+          "name": "status",
+          "data_type": "string",
+          "nullable": false,
+          "description": "COMPLETED, PENDING, FAILED, REVERSED"
+        },
+        {
+          "name": "is_refund",
+          "data_type": "boolean",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "original_transaction_id",
+          "data_type": "string",
+          "nullable": true,
+          "description": ""
+        }
+      ]
+    },
+    "support_cases": {
+      "table_name": "support_cases",
+      "primary_key": [
+        "case_id"
+      ],
+      "columns": [
+        {
+          "name": "case_id",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "customer_id",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "opened_at",
+          "data_type": "timestamp",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "closed_at",
+          "data_type": "timestamp",
+          "nullable": true,
+          "description": ""
+        },
+        {
+          "name": "category",
+          "data_type": "string",
+          "nullable": false,
+          "description": "PAYMENT, ACCOUNT, TRANSACTION, CARD, FRAUD, LOGIN, OTHER"
+        },
+        {
+          "name": "priority",
+          "data_type": "string",
+          "nullable": false,
+          "description": "LOW, MEDIUM, HIGH, CRITICAL"
+        },
+        {
+          "name": "status",
+          "data_type": "string",
+          "nullable": false,
+          "description": "OPEN, IN_PROGRESS, RESOLVED, CLOSED"
+        },
+        {
+          "name": "resolution_time_hours",
+          "data_type": "float",
+          "nullable": true,
+          "description": ""
+        },
+        {
+          "name": "channel",
+          "data_type": "string",
+          "nullable": false,
+          "description": "PHONE, EMAIL, CHAT, WEB"
+        },
+        {
+          "name": "description_class",
+          "data_type": "string",
+          "nullable": false,
+          "description": ""
+        },
+        {
+          "name": "satisfaction_score",
+          "data_type": "int",
+          "nullable": true,
+          "description": ""
+        }
+      ]
+    }
+  },
+  "scenario_ids": [],
+  "file_names": {
+    "customers": "customers.parquet",
+    "accounts": "accounts.parquet",
+    "transactions": "transactions.parquet",
+    "support_cases": "support_cases.parquet"
+  },
+  "checksums": {
+    "customers": "275c756590a6b2c9c594be9f2a50fc29d391c8e59b59777c1ac87cd46c038efd",
+    "accounts": "8d0d5e23abce7e136460cd858b48ebe3d1a7079862b7c6db5957b244a63e9a1a",
+    "transactions": "79a1bc2c362596af9bc71facfc82f2facaebff3bcd304efdcd37c093b996a497",
+    "support_cases": "bed8942ca223afc13aed8644161bca0fb55f2beca27f1f10feaf72b12d22ae50"
+  }
+}
