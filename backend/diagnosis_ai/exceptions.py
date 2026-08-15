@@ -1,8 +1,11 @@
-"""Domain exceptions for Phase 7 AI Diagnosis & Repair Engine."""
-
-
 class DiagnosisAIError(Exception):
     """Base exception for Diagnosis AI errors."""
+
+    pass
+
+
+class PersistenceError(DiagnosisAIError):
+    """Raised when authoritative PostgreSQL persistence fails in non-test environments."""
 
     pass
 

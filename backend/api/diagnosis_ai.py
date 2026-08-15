@@ -81,14 +81,22 @@ def get_ai_diagnosis(diagnosis_id: str) -> DiagnosisAIResult:
 @diagnosis_ai_router.get("/repair-proposals/{repair_id}", response_model=RepairProposal)
 def get_repair_proposal_by_id(repair_id: str) -> RepairProposal:
     """Retrieve existing candidate repair proposal by repair_id."""
+    from backend.diagnosis_ai.repository import _IN_MEMORY_REPAIR_STORE
+
     try:
         session = get_db_session()
     except Exception:
+        mem_rep = _IN_MEMORY_REPAIR_STORE.get(repair_id)
+        if mem_rep:
+            return mem_rep
         raise HTTPException(status_code=404, detail=f"Repair proposal '{repair_id}' not found.")
 
     try:
         rep_rec = session.query(RepairProposalRecord).filter_by(repair_id=repair_id).first()
         if not rep_rec:
+            mem_rep = _IN_MEMORY_REPAIR_STORE.get(repair_id)
+            if mem_rep:
+                return mem_rep
             raise HTTPException(status_code=404, detail=f"Repair proposal '{repair_id}' not found.")
 
         chg_recs = session.query(RepairChangeRecordModel).filter_by(repair_id=repair_id).all()

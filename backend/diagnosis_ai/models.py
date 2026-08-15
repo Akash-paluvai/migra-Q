@@ -145,6 +145,7 @@ class DiagnosisAIMetadata(BaseModel):
     total_token_count: int | None = None
     error_code: str | None = None
     error_message: str | None = None
+    persistence_status: str = "PERSISTED"  # "PERSISTED", "FAILED_PERSISTENCE", or "NOT_PERSISTED"
     diagnosis_ai_version: str = "0.1.0"
     prompt_version: str = "0.1.0"
 

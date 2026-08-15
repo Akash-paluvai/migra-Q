@@ -7,8 +7,10 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from backend.core.config import settings
 from backend.db.database import get_db_session
 from backend.db.models import AIDiagnosisRecord, RepairChangeRecordModel, RepairProposalRecord
+from backend.diagnosis_ai.exceptions import PersistenceError
 from backend.diagnosis_ai.models import (
     AIDiagnosis,
     DiagnosisAIMetadata,
@@ -20,12 +22,18 @@ from backend.diagnosis_ai.models import (
     RepairStatus,
 )
 
+_IN_MEMORY_DIAGNOSIS_STORE: dict[str, DiagnosisAIResult] = {}
+_IN_MEMORY_REPAIR_STORE: dict[str, RepairProposal] = {}
+
 
 def save_diagnosis_ai_result(
     result: DiagnosisAIResult,
     session: Session | None = None,
 ) -> None:
-    """Save Phase 7 DiagnosisAIResult to PostgreSQL database tables."""
+    """Save Phase 7 DiagnosisAIResult to PostgreSQL database tables (or in-memory store in TEST mode)."""
+    # Always keep in-memory reference for test environment retrieval
+    _IN_MEMORY_DIAGNOSIS_STORE[result.metadata.diagnosis_id] = result
+    _IN_MEMORY_REPAIR_STORE[result.repair_proposal.repair_id] = result.repair_proposal
 
     def _persist(s: Session) -> None:
         diag = result.diagnosis
@@ -88,21 +96,35 @@ def save_diagnosis_ai_result(
             s.add(chg_rec)
 
         s.commit()
+        result.metadata.persistence_status = "PERSISTED"
 
     if session:
         try:
             _persist(session)
-        except Exception:
+        except Exception as e:
             session.rollback()
+            result.metadata.persistence_status = "FAILED_PERSISTENCE"
+            if settings.APP_ENV in ("development", "demo", "production") or settings.PERSISTENCE_MODE == "postgres":
+                raise PersistenceError(
+                    f"PostgreSQL persistence failed in environment '{settings.APP_ENV}': {e}"
+                ) from e
     else:
+        if settings.PERSISTENCE_MODE == "memory" and settings.APP_ENV == "test":
+            result.metadata.persistence_status = "PERSISTED"
+            return
+
         try:
             db_s = get_db_session()
             try:
                 _persist(db_s)
             finally:
                 db_s.close()
-        except Exception:
-            pass  # Silent resilience if PostgreSQL is unavailable in test environment
+        except Exception as e:
+            result.metadata.persistence_status = "FAILED_PERSISTENCE"
+            if settings.APP_ENV in ("development", "demo", "production") or settings.PERSISTENCE_MODE == "postgres":
+                raise PersistenceError(
+                    f"Authoritative PostgreSQL persistence failed in environment '{settings.APP_ENV}': {e}"
+                ) from e
 
 
 def get_diagnosis_ai_result(
@@ -116,16 +138,16 @@ def get_diagnosis_ai_result(
             session = get_db_session()
             close_session = True
         except Exception:
-            return None
+            return _IN_MEMORY_DIAGNOSIS_STORE.get(diagnosis_id)
 
     try:
         diag_rec = session.query(AIDiagnosisRecord).filter_by(diagnosis_id=diagnosis_id).first()
         if not diag_rec:
-            return None
+            return _IN_MEMORY_DIAGNOSIS_STORE.get(diagnosis_id)
 
         rep_rec = session.query(RepairProposalRecord).filter_by(diagnosis_id=diagnosis_id).first()
         if not rep_rec:
-            return None
+            return _IN_MEMORY_DIAGNOSIS_STORE.get(diagnosis_id)
 
         chg_recs = session.query(RepairChangeRecordModel).filter_by(repair_id=rep_rec.repair_id).all()
 

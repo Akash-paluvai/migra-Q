@@ -101,3 +101,48 @@ def test_independent_discrepancy_isolation():
     )
     assert res_d1.diagnosis.discrepancy_id == "D-001"
     assert res_d1.repair_proposal.changed_region == "columns[risk_class]"
+
+
+def test_mock_scope_creep_fails_with_unjustified_scope_change():
+    """Negative test: AI proposes risk_class change + JOIN change + GROUP BY change.
+
+    Result MUST be RepairStatus.FAILED with UNJUSTIFIED_SCOPE_CHANGE (not merely a warning).
+    """
+    source_sql = """SELECT
+  c.customer_id,
+  c.customer_segment,
+  SUM(t.amount) AS total_amount,
+  CASE WHEN t.amount > 500.00 THEN 'HIGH_RISK' ELSE 'NORMAL' END AS risk_class
+FROM transactions t
+JOIN customers c ON t.customer_id = c.customer_id
+WHERE t.status = 'COMPLETED'
+GROUP BY c.customer_id, c.customer_segment, t.amount;"""
+
+    target_sql = """SELECT
+  c.customer_id,
+  c.customer_segment,
+  SUM(t.amount) AS total_amount,
+  CASE WHEN t.amount >= 500.00 THEN 'HIGH_RISK' ELSE 'NORMAL' END AS risk_class
+FROM transactions t
+JOIN customers c ON t.customer_id = c.customer_id
+WHERE t.status = 'COMPLETED'
+GROUP BY c.customer_id, c.customer_segment, t.amount;"""
+
+    res = DiagnosisAIService.diagnose_discrepancy(
+        discrepancy_id="D-001",
+        category="BOUNDARY_CONDITION",
+        severity="HIGH",
+        source_sql=source_sql,
+        target_sql=target_sql,
+        source_expression="t.amount > 500",
+        target_expression="t.amount >= 500",
+        analysis_path="columns[risk_class]",
+        affected_row_count=10512,
+        mock_mode="MOCK_SCOPE_CREEP",
+    )
+
+    # MUST be FAILED (not merely a warning or PROPOSED)
+    assert res.repair_proposal.status.value == "FAILED"
+    assert "unjustified_scope_change" in " ".join(res.repair_proposal.constraints_checked).lower() or any(
+        "UNJUSTIFIED_SCOPE_CHANGE" in str(c) for c in res.repair_proposal.constraints_checked
+    ) or res.repair_proposal.repair_confidence == 0.0

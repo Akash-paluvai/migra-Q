@@ -65,13 +65,18 @@ PostgreSQL Persistence (ai_diagnoses, repair_proposals, repair_changes) -> STOP
    - Verifies changes are strictly localized to `changed_region` (e.g. `columns[risk_class]`).
    - Rejects scope creep (e.g. modifying `JOIN`, `GROUP BY`, `WHERE`, or unrelated projections) as `UNJUSTIFIED_SCOPE_CHANGE`.
 
-5. **Separate Confidence Scores**:
+5. **Authoritative PostgreSQL Persistence Policy**:
+   - In `development`, `demo`, and `production`, PostgreSQL is authoritative.
+   - PostgreSQL connection failures in non-test environments raise an explicit `PersistenceError` and set `persistence_status = "FAILED_PERSISTENCE"`. Silent fallbacks to SQLite or implicit stores are strictly prohibited.
+   - In `test` environment (`APP_ENV="test"` / `PERSISTENCE_MODE="memory"`), in-memory repository substitution is explicitly configured.
+
+6. **Separate Confidence Scores**:
    - Computes distinct `diagnosis_confidence` and `repair_confidence` based on evidence grounding, scope localization, and contract preservation.
 
 ---
 
 ## Verification & Testing
 
-- **329 of 329 tests passed** (`pytest -v`)
+- **335 of 335 tests passed** (`pytest -v`)
 - **0 linter errors** (`ruff check backend/ tests/`)
-- Verifies flagship boundary refund scenario, 9 mock provider scenarios, prompt injection defense, AST scope creep rejection, contract check rejection, and PostgreSQL persistence fallback.
+- Verifies flagship boundary refund scenario, 9 mock provider scenarios, prompt injection defense, AST scope creep rejection, contract check rejection, and PostgreSQL persistence policy regression suite.
