@@ -24,12 +24,16 @@ def get_db() -> Session:  # type: ignore[misc]
 
 def check_database_health() -> bool:
     """Run a lightweight query to verify PostgreSQL is reachable."""
+    settings.validate_persistence_policy()
+    if settings.PERSISTENCE_MODE == "memory":
+        return True
+
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return True
     except Exception as exc:
-        logger.error("Database health check failed: %s", exc)
+        logger.error("PostgreSQL health check failed: %s", exc)
         return False
 
 

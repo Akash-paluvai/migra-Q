@@ -1,5 +1,7 @@
 """FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,7 +13,15 @@ from backend.db.duckdb_check import check_duckdb
 setup_logging()
 logger = get_logger(__name__)
 
-app = FastAPI(title=settings.APP_NAME, version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting %s (env=%s)", settings.APP_NAME, settings.APP_ENV)
+    check_duckdb()
+    yield
+
+
+app = FastAPI(title=settings.APP_NAME, version="0.1.0", lifespan=lifespan)
 
 # CORS
 app.add_middleware(
@@ -23,9 +33,3 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
-
-
-@app.on_event("startup")
-def startup() -> None:
-    logger.info("Starting %s (env=%s)", settings.APP_NAME, settings.APP_ENV)
-    check_duckdb()

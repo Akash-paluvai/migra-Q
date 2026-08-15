@@ -88,52 +88,94 @@ def compare_relations(
     rows_matched = 0
     duplicate_key_warnings = 0
 
+    # 3. Compare value differences for common keys
+    rows_matched = 0
+    duplicate_key_warnings = 0
+
     src_grouped = df_src.groupby("_join_key")
     tgt_grouped = df_tgt.groupby("_join_key")
 
     for k in sorted(list(common_keys)):
-        src_rows = src_grouped.get_group(k)
-        tgt_rows = tgt_grouped.get_group(k)
+        src_sub = src_grouped.get_group(k)
+        tgt_sub = tgt_grouped.get_group(k)
 
-        if len(src_rows) > 1 or len(tgt_rows) > 1:
+        if len(src_sub) > 1 or len(tgt_sub) > 1:
             duplicate_key_warnings += 1
 
-        pair_count = max(len(src_rows), len(tgt_rows))
-        for i in range(pair_count):
-            if i >= len(src_rows):
+        src_rows_list = [row.to_dict() for _, row in src_sub.iterrows()]
+        tgt_rows_list = [row.to_dict() for _, row in tgt_sub.iterrows()]
+
+        matched_pairs = _match_group_rows(
+            src_rows_list, tgt_rows_list, common_cols, abs_tol=abs_tol, rel_tol=rel_tol
+        )
+
+        for r_src, r_tgt in matched_pairs:
+            if r_src is None and r_tgt is not None:
                 mismatch_count += 1
-                continue
-            if i >= len(tgt_rows):
-                mismatch_count += 1
-                continue
-
-            r_src = src_rows.iloc[i]
-            r_tgt = tgt_rows.iloc[i]
-            row_has_mismatch = False
-            key_dict = {col: str(r_src[col]) for col in comparison_keys}
-
-            for col in common_cols:
-                val_s = r_src[col]
-                val_t = r_tgt[col]
-
-                if not compare_values(val_s, val_t, abs_tol=abs_tol, rel_tol=rel_tol):
-                    row_has_mismatch = True
-                    mismatch_count += 1
-                    if len(evidence_items) < max_evidence_items:
-                        evidence_items.append(
-                            EvidenceItem(
-                                type=EvidenceType.VALUE_MISMATCH,
-                                key=key_dict,
-                                column=col,
-                                source_value=str(val_s),
-                                target_value=str(val_t),
-                                category="VALUE_MISMATCH",
-                                detail=f"Column '{col}' mismatch for key {key_dict}.",
-                            )
+                if len(evidence_items) < max_evidence_items:
+                    key_dict = {col: str(r_tgt[col]) for col in comparison_keys}
+                    evidence_items.append(
+                        EvidenceItem(
+                            type=EvidenceType.MISSING_SOURCE_ROW,
+                            key=key_dict,
+                            category="EXTRA_IN_TARGET",
+                            detail=f"Duplicate key {key_dict} has extra row in target.",
                         )
+                    )
+                continue
 
-            if not row_has_mismatch:
-                rows_matched += 1
+            if r_tgt is None and r_src is not None:
+                mismatch_count += 1
+                if len(evidence_items) < max_evidence_items:
+                    key_dict = {col: str(r_src[col]) for col in comparison_keys}
+                    evidence_items.append(
+                        EvidenceItem(
+                            type=EvidenceType.MISSING_TARGET_ROW,
+                            key=key_dict,
+                            category="MISSING_FROM_TARGET",
+                            detail=f"Duplicate key {key_dict} has extra row in source.",
+                        )
+                    )
+                continue
+
+            if r_src is not None and r_tgt is not None:
+                row_has_mismatch = False
+                key_dict = {col: str(r_src[col]) for col in comparison_keys}
+
+                for col in common_cols:
+                    val_s = r_src[col]
+                    val_t = r_tgt[col]
+
+                    if not compare_values(val_s, val_t, abs_tol=abs_tol, rel_tol=rel_tol):
+                        row_has_mismatch = True
+                        mismatch_count += 1
+                        if len(evidence_items) < max_evidence_items:
+                            evidence_items.append(
+                                EvidenceItem(
+                                    type=EvidenceType.VALUE_MISMATCH,
+                                    key=key_dict,
+                                    column=col,
+                                    source_value=str(val_s),
+                                    target_value=str(val_t),
+                                    category="VALUE_MISMATCH",
+                                    detail=f"Column '{col}' mismatch for key {key_dict}.",
+                                )
+                            )
+
+                if not row_has_mismatch:
+                    rows_matched += 1
+
+    if duplicate_key_warnings > 0 and len(evidence_items) < max_evidence_items:
+        evidence_items.append(
+            EvidenceItem(
+                type=EvidenceType.DUPLICATE_KEY_WARNING,
+                category="NON_UNIQUE_KEY_WARNING",
+                detail=(
+                    f"Comparison key {comparison_keys} is non-unique across "
+                    f"{duplicate_key_warnings} key groups."
+                ),
+            )
+        )
 
     total_rows = len(df_src)
     score = (rows_matched / total_rows) if total_rows > 0 else (1.0 if len(df_tgt) == 0 else 0.0)
@@ -150,6 +192,83 @@ def compare_relations(
         "evidence": evidence_items,
         "evidence_truncated": mismatch_count > len(evidence_items),
     }
+
+
+def _match_group_rows(
+    src_rows: list[dict[str, Any]],
+    tgt_rows: list[dict[str, Any]],
+    common_cols: list[str],
+    abs_tol: float = 1e-6,
+    rel_tol: float = 1e-5,
+) -> list[tuple[dict[str, Any] | None, dict[str, Any] | None]]:
+    """Match rows within a single duplicate key group using multiset alignment.
+
+    1. Identical rows (all common_cols match) are paired first.
+    2. Remaining rows are paired greedily to maximize matching columns.
+    3. Unmatched rows are returned paired with None.
+    """
+    src_unmatched = list(range(len(src_rows)))
+    tgt_unmatched = list(range(len(tgt_rows)))
+
+    pairs: list[tuple[dict[str, Any] | None, dict[str, Any] | None]] = []
+
+    # 1. Exact match pass
+    src_to_remove = []
+    tgt_to_remove = []
+
+    for i in src_unmatched:
+        r_src = src_rows[i]
+        for j in tgt_unmatched:
+            if j in tgt_to_remove:
+                continue
+            r_tgt = tgt_rows[j]
+            all_match = True
+            for col in common_cols:
+                if not compare_values(r_src[col], r_tgt[col], abs_tol=abs_tol, rel_tol=rel_tol):
+                    all_match = False
+                    break
+            if all_match:
+                pairs.append((r_src, r_tgt))
+                src_to_remove.append(i)
+                tgt_to_remove.append(j)
+                break
+
+    src_remaining = [i for i in src_unmatched if i not in src_to_remove]
+    tgt_remaining = [j for j in tgt_unmatched if j not in tgt_to_remove]
+
+    # 2. Maximum column match pass for remaining rows
+    while src_remaining and tgt_remaining:
+        best_pair = None
+        best_match_count = -1
+
+        for i in src_remaining:
+            r_src = src_rows[i]
+            for j in tgt_remaining:
+                r_tgt = tgt_rows[j]
+                match_count = sum(
+                    1
+                    for col in common_cols
+                    if compare_values(r_src[col], r_tgt[col], abs_tol=abs_tol, rel_tol=rel_tol)
+                )
+                if match_count > best_match_count:
+                    best_match_count = match_count
+                    best_pair = (i, j)
+
+        if best_pair:
+            i, j = best_pair
+            pairs.append((src_rows[i], tgt_rows[j]))
+            src_remaining.remove(i)
+            tgt_remaining.remove(j)
+        else:
+            break
+
+    # 3. Add remaining unmatched rows
+    for i in src_remaining:
+        pairs.append((src_rows[i], None))
+    for j in tgt_remaining:
+        pairs.append((None, tgt_rows[j]))
+
+    return pairs
 
 
 def _load_df(

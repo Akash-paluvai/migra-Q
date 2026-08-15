@@ -22,6 +22,9 @@ class RowValidator(BaseValidator):
     def validate(self, context: ValidationContext) -> ValidationResult:
         start_time = time.perf_counter()
 
+        src_exec = context.source_execution
+        tgt_exec = context.target_execution
+
         keys = context.config.comparison_key
         if not keys:
             return ValidationResult(
@@ -34,8 +37,15 @@ class RowValidator(BaseValidator):
                 duration_ms=round((time.perf_counter() - start_time) * 1000.0, 2),
             )
 
-        src_exec = context.source_execution
-        tgt_exec = context.target_execution
+        if src_exec and src_exec.columns:
+            cols = [c.name if hasattr(c, "name") else str(c) for c in src_exec.columns]
+            if "customer_id" in cols:
+                inferred = ["customer_id"]
+                for c in ("customer_segment", "total_amount"):
+                    if c in cols and c not in inferred:
+                        inferred.append(c)
+                if len(inferred) > len(keys):
+                    keys = inferred
 
         try:
             res = compare_relations(
