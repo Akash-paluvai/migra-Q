@@ -78,18 +78,17 @@ class MockLLMProvider(LLMProvider):
                 "translated_rules": [],
             }
         elif self.mode == "MOCK_BOUNDARY_BUG":
-            # Intentionally changes > 500 to >= 500 to test phase boundary separation
+            # Valid candidate with subtle boundary condition bug (> 500 -> >= 500)
             payload = {
                 "target_sql": """SELECT
   c.customer_id,
   c.customer_segment,
   SUM(t.amount) AS total_amount,
-  CASE WHEN SUM(t.amount) >= 500.00 THEN 'HIGH_RISK' ELSE 'NORMAL' END AS risk_class
-FROM customers c
-JOIN transactions t ON c.customer_id = t.customer_id
+  CASE WHEN t.amount >= 500.00 THEN 'HIGH_RISK' ELSE 'NORMAL' END AS risk_class
+FROM transactions t
+JOIN customers c ON t.customer_id = c.customer_id
 WHERE t.status = 'COMPLETED'
-GROUP BY c.customer_id, c.customer_segment
-ORDER BY c.customer_id;""",
+GROUP BY c.customer_id, c.customer_segment, t.amount;""",
                 "assumptions": ["Assumed BigQuery dialect syntax"],
                 "potential_risks": ["Boundary condition operator changed to >="],
                 "translated_rules": [
@@ -101,14 +100,8 @@ ORDER BY c.customer_id;""",
                     }
                 ],
             }
-        elif self.mode == "MOCK_HALLUCINATED_COLUMN":
-            payload = {
-                "target_sql": "SELECT customer_id, nonexistent_column FROM transactions;",
-                "assumptions": ["Used hallucinated column"],
-                "potential_risks": ["Column does not exist"],
-                "translated_rules": [],
-            }
-        else:  # Default MOCK_GOOD
+        elif self.mode == "MOCK_SEMANTICALLY_WRONG":
+            # Valid candidate with multiple structural/aggregation semantic changes
             payload = {
                 "target_sql": """SELECT
   c.customer_id,
@@ -120,6 +113,38 @@ JOIN transactions t ON c.customer_id = t.customer_id
 WHERE t.status = 'COMPLETED'
 GROUP BY c.customer_id, c.customer_segment
 ORDER BY c.customer_id;""",
+                "assumptions": ["Grouped BY customer_id and customer_segment"],
+                "potential_risks": [
+                    "t.amount removed from GROUP BY",
+                    "Aggregation SUM(t.amount) introduced inside CASE expression",
+                ],
+                "translated_rules": [
+                    {
+                        "source_path": "business_rules[0]",
+                        "source_expression": "t.amount > 500",
+                        "target_expression": "SUM(t.amount) > 500.00",
+                        "rule_type": "comparison",
+                    }
+                ],
+            }
+        elif self.mode == "MOCK_HALLUCINATED_COLUMN":
+            payload = {
+                "target_sql": "SELECT customer_id, nonexistent_column FROM transactions;",
+                "assumptions": ["Used hallucinated column"],
+                "potential_risks": ["Column does not exist"],
+                "translated_rules": [],
+            }
+        else:  # Default MOCK_GOOD (Genuinely structurally faithful to source query!)
+            payload = {
+                "target_sql": """SELECT
+  c.customer_id,
+  c.customer_segment,
+  SUM(t.amount) AS total_amount,
+  CASE WHEN t.amount > 500.00 THEN 'HIGH_RISK' ELSE 'NORMAL' END AS risk_class
+FROM transactions t
+JOIN customers c ON t.customer_id = c.customer_id
+WHERE t.status = 'COMPLETED'
+GROUP BY c.customer_id, c.customer_segment, t.amount;""",
                 "assumptions": ["Converted Teradata JOIN syntax to BigQuery standard SQL"],
                 "potential_risks": ["Verify implicit type coercions"],
                 "translated_rules": [

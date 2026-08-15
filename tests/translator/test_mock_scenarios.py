@@ -47,8 +47,28 @@ def test_mock_scenario_2_boundary_bug():
     assert not hasattr(res.response, "equivalence")
 
 
-def test_mock_scenario_3_hallucinated_column():
-    """Scenario 3: MOCK_HALLUCINATED_COLUMN -> SCHEMA_MISMATCH / FAILED."""
+def test_mock_scenario_semantically_wrong():
+    """Scenario 3: MOCK_SEMANTICALLY_WRONG (SUM(t.amount) > 500 in CASE & GROUP BY changed).
+
+    MUST return SUCCESS in Phase 6 because candidate SQL is syntactically valid.
+    Structural diff preview flags the structural changes, while Phase 4/5 later exposes
+    the semantic discrepancy (AGGREGATION_SEMANTICS & GROUP_BY mismatch).
+    """
+    req = TranslationRequest(
+        source_sql="SELECT customer_id FROM transactions WHERE amount > 500;",
+        source_dialect="teradata",
+        target_dialect="bigquery",
+    )
+    res = TranslationService.translate(request=req, mock_mode="MOCK_SEMANTICALLY_WRONG")
+
+    assert res.status == TranslationStatus.SUCCESS
+    assert res.candidate_validation_status == CandidateValidationStatus.VALID_SYNTAX
+    assert res.semantic_status == "NOT_EVALUATED"
+    assert len(res.structural_differences) > 0
+
+
+def test_mock_scenario_4_hallucinated_column():
+    """Scenario 4: MOCK_HALLUCINATED_COLUMN -> SCHEMA_MISMATCH / FAILED."""
     from backend.translator.models import ColumnSchemaDef, SchemaContext, TableSchema
 
     schema = SchemaContext(
@@ -73,8 +93,8 @@ def test_mock_scenario_3_hallucinated_column():
     assert "nonexistent_column" in res.validation_summary
 
 
-def test_mock_scenario_4_unsafe_sql():
-    """Scenario 4: MOCK_UNSAFE_SQL (DROP TABLE) -> REJECTED, UNSAFE_SQL."""
+def test_mock_scenario_5_unsafe_sql():
+    """Scenario 5: MOCK_UNSAFE_SQL (DROP TABLE) -> REJECTED, UNSAFE_SQL."""
     req = TranslationRequest(
         source_sql="SELECT customer_id FROM transactions;",
         source_dialect="teradata",

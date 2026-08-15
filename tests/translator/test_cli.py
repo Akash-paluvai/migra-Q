@@ -32,8 +32,9 @@ def test_cli_translate_flagship_file():
     res = subprocess.run(cmd, capture_output=True, text=True)
     assert res.returncode == 0
     assert "MIGRA-Q TRANSLATION" in res.stdout
-    assert "Status        : SUCCESS" in res.stdout
+    assert "Status         : SUCCESS" in res.stdout
     assert "Candidate Check: VALID_SYNTAX" in res.stdout
+    assert "Semantic Status: NOT_EVALUATED" in res.stdout
     assert "Target Candidate SQL:" in res.stdout
     assert "Candidate SQL syntactically valid" in res.stdout
 

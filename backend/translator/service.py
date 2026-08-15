@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from backend.analyzer.service import analyze
 from backend.core.config import settings
 from backend.translator.context_builder import build_translation_context
+from backend.translator.diff_preview import generate_diff_preview
 from backend.translator.models import (
     CandidateValidationStatus,
     TranslationMetadata,
@@ -262,12 +263,22 @@ class TranslationService:
             error_message=val_msg if err_code else None,
         )
 
+        # 8. Structural AST Diff Preview
+        _, _, struct_diffs = generate_diff_preview(
+            source_sql=request.source_sql,
+            source_dialect=request.source_dialect,
+            target_sql=parsed_response.target_sql,
+            target_dialect=request.target_dialect,
+        )
+
         result = TranslationResult(
             metadata=meta,
             status=overall_status,
             candidate_validation_status=cand_status,
+            semantic_status="NOT_EVALUATED",
             response=parsed_response,
             validation_summary=val_msg,
+            structural_differences=struct_diffs,
         )
 
         save_translation_result(result, db_session)

@@ -65,14 +65,21 @@ def main() -> None:
 
     print("MIGRA-Q TRANSLATION")
     print("===================")
-    print(f"Translation ID: {res.metadata.translation_id}")
-    print(f"Source Dialect: {res.metadata.source_dialect}")
-    print(f"Target Dialect: {res.metadata.target_dialect}")
-    print(f"Status        : {res.status.value}")
+    print(f"Translation ID : {res.metadata.translation_id}")
+    print(f"Source Dialect : {res.metadata.source_dialect}")
+    print(f"Target Dialect : {res.metadata.target_dialect}")
+    print(f"Status         : {res.status.value}")
     if res.candidate_validation_status:
         print(f"Candidate Check: {res.candidate_validation_status.value}")
-    print(f"Summary       : {res.validation_summary}")
+    print(f"Semantic Status: {res.semantic_status}")
+    print(f"Summary        : {res.validation_summary}")
     print()
+
+    if res.structural_differences:
+        print("Structural Differences:")
+        for diff in res.structural_differences:
+            print(f"  - {diff}")
+        print()
 
     if res.response and res.response.target_sql:
         print("Target Candidate SQL:")

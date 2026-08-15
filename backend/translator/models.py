@@ -145,5 +145,7 @@ class TranslationResult(BaseModel):
     metadata: TranslationMetadata
     status: TranslationStatus
     candidate_validation_status: CandidateValidationStatus | None = None
+    semantic_status: str = "NOT_EVALUATED"
     response: TranslationResponse | None = None
     validation_summary: str = ""
+    structural_differences: list[str] = Field(default_factory=list)
