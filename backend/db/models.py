@@ -145,3 +145,66 @@ class TranslationRecord(Base):
     translator_version = Column(String(32), nullable=False, default="0.1.0")
     prompt_version = Column(String(32), nullable=False, default="0.1.0")
 
+
+class AIDiagnosisRecord(Base):
+    """PostgreSQL table storing AI diagnosis run audit records."""
+
+    __tablename__ = "ai_diagnoses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    diagnosis_id = Column(String(64), unique=True, index=True, nullable=False)
+    discrepancy_id = Column(String(64), index=True, nullable=False)
+    provider = Column(String(32), nullable=False)
+    model = Column(String(64), nullable=False)
+    status = Column(String(32), nullable=False)
+    observed_change = Column(Text, nullable=True)
+    likely_mechanism = Column(Text, nullable=True)
+    possible_cause = Column(Text, nullable=True)
+    uncertainty = Column(Text, nullable=True)
+    diagnosis_confidence = Column(Float, nullable=False, default=0.0)
+    claims_json = Column(Text, nullable=True)
+    context_hash = Column(String(64), index=True, nullable=False)
+    prompt_hash = Column(String(64), index=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    duration_ms = Column(Float, nullable=False, default=0.0)
+    token_usage_json = Column(Text, nullable=True)
+    error_code = Column(String(128), nullable=True)
+    error_message = Column(Text, nullable=True)
+    diagnosis_ai_version = Column(String(32), nullable=False, default="0.1.0")
+    prompt_version = Column(String(32), nullable=False, default="0.1.0")
+
+
+class RepairProposalRecord(Base):
+    """PostgreSQL table storing candidate repair proposal audit records."""
+
+    __tablename__ = "repair_proposals"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    repair_id = Column(String(64), unique=True, index=True, nullable=False)
+    diagnosis_id = Column(String(64), index=True, nullable=False)
+    discrepancy_id = Column(String(64), index=True, nullable=False)
+    status = Column(String(32), nullable=False)
+    original_sql = Column(Text, nullable=True)
+    proposed_sql = Column(Text, nullable=True)
+    changed_region = Column(String(256), nullable=True)
+    rationale = Column(Text, nullable=True)
+    expected_effect = Column(Text, nullable=True)
+    repair_confidence = Column(Float, nullable=False, default=0.0)
+    claims_json = Column(Text, nullable=True)
+    constraints_checked_json = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class RepairChangeRecordModel(Base):
+    """PostgreSQL table storing individual patch changes for a repair proposal."""
+
+    __tablename__ = "repair_changes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    repair_id = Column(String(64), index=True, nullable=False)
+    location = Column(String(256), nullable=False)
+    before_expression = Column(Text, nullable=False)
+    after_expression = Column(Text, nullable=False)
+    change_type = Column(String(32), nullable=False, default="MODIFY")
+
+

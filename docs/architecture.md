@@ -20,7 +20,7 @@ Deterministic Core:          LLM / AI (later phases):
   - assurance gating
 ```
 
-## Current Architecture (Phase 0 – Phase 6)
+## Current Architecture (Phase 0 – Phase 7)
 
 ```
 ┌────────────┐      ┌────────────────┐      ┌────────────┐
@@ -33,11 +33,24 @@ Deterministic Core:          LLM / AI (later phases):
                     │  validation/   │      │ (Parquet)  │
                     │  diagnosis/    │      └────────────┘
                     │  translator/   │
-                    │   providers    │      ┌────────────┐
-                    │   prompts      │─────▶│ Generative │
-                    │   validator    │      │ LLM (AI)   │
-                    └────────────────┘      └────────────┘
+                    │  diagnosis_ai/ │      ┌────────────┐
+                    │   context      │─────▶│ Generative │
+                    │   prompts      │      │ LLM (AI)   │
+                    │   evidence     │      └────────────┘
+                    │   scope        │
+                    └────────────────┘
 ```
+
+## Phase Progression
+
+1. **Phase 0**: Architecture & Domain Foundations
+2. **Phase 1**: Static Analysis Engine (SQLGlot AST parsing & normalization)
+3. **Phase 2**: Synthetic Data & Scenario Generator Engine
+4. **Phase 3**: Multi-Dialect Query Execution & Artifact Storage (DuckDB Engine)
+5. **Phase 4**: Multi-Layer Validation Engine (Deterministic semantic equivalence checking)
+6. **Phase 5**: Discrepancy Classification & Evidence Consolidation
+7. **Phase 6**: AI-Assisted SQL Translation Engine
+8. **Phase 7**: AI-Grounded Discrepancy Diagnosis & Repair Proposal Engine (`PROPOSED` candidates only)
 
 ## Services & Modules
 

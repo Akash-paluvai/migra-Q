@@ -22,6 +22,11 @@ def get_db() -> Session:  # type: ignore[misc]
         db.close()
 
 
+def get_db_session() -> Session:
+    """Return a new database session instance."""
+    return SessionLocal()
+
+
 def check_database_health() -> bool:
     """Run a lightweight query to verify PostgreSQL is reachable."""
     settings.validate_persistence_policy()
