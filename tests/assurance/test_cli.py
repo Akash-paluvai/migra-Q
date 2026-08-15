@@ -51,9 +51,9 @@ class TestFormatReport:
         output = format_report(report)
         assert "MIG-TEST" in output
         assert "VERIFIED" in output
-        assert "100.0" in output
+        assert "100.0 / 100" in output
         assert "75%" in output
-        assert "11 / 11" in output
+        assert "11 PASS, 0 NOT APPLICABLE, 0 FAIL" in output
         assert "✓" in output
 
     def test_blocked_report_format(self):

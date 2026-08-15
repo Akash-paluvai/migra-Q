@@ -64,18 +64,22 @@ def format_report(report: MigrationAssuranceReport) -> str:
     lines.append("")
     lines.append("")
     lines.append("Assurance score:")
-    lines.append(f"{report.score.evidence_score:.1f}")
+    lines.append(f"{report.score.evidence_score:.1f} / 100")
     lines.append("")
     lines.append("")
     lines.append("Evidence coverage:")
     lines.append(f"{report.score.evidence_coverage:.0f}%")
+    skipped_names = [c.name for c in report.score.components if c.status.value == "NOT_APPLICABLE"]
+    if skipped_names:
+        skipped_str = ", ".join(skipped_names)
+        lines.append(f"Why: {skipped_str} was SKIPPED in this run.")
     lines.append("")
     lines.append("")
     lines.append("Hard gates:")
-    passed_or_na = report.gate_evaluation.passed_count + report.gate_evaluation.not_applicable_count
-    total_gates = report.gate_evaluation.total_gates
-    gate_ok = "PASS" if report.gate_evaluation.all_passed else "FAIL"
-    lines.append(f"{passed_or_na} / {total_gates} {gate_ok}")
+    p_cnt = report.gate_evaluation.passed_count
+    na_cnt = report.gate_evaluation.not_applicable_count
+    f_cnt = report.gate_evaluation.failed_count
+    lines.append(f"{p_cnt} PASS, {na_cnt} NOT APPLICABLE, {f_cnt} FAIL")
     lines.append("")
     lines.append("")
     lines.append("Verification path:")
@@ -87,6 +91,7 @@ def format_report(report: MigrationAssuranceReport) -> str:
     lines.append(f"{icon} {report.final_status.value}")
     lines.append("")
     return "\n".join(lines)
+
 
 
 
