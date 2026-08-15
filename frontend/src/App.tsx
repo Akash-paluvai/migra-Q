@@ -1,38 +1,24 @@
-import { useEffect, useState } from 'react'
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { EnterpriseShell } from './components/EnterpriseShell';
+import { LandingPage } from './pages/LandingPage';
+import { MigrationsPage } from './pages/MigrationsPage';
+import { NewMigrationPage } from './pages/NewMigrationPage';
+import { MigrationWorkspace } from './pages/MigrationWorkspace';
 
-interface HealthStatus {
-  status: string
-  service?: string
-  database?: string
-}
-
-function App() {
-  const [health, setHealth] = useState<HealthStatus | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch('/api/v1/health')
-      .then((r) => r.json())
-      .then(setHealth)
-      .catch((e) => setError(e.message))
-  }, [])
-
+export const App: React.FC = () => {
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: '600px', margin: '0 auto' }}>
-      <h1>MIGRA-Q</h1>
-      <p>AI-Assisted Legacy Data Migration &amp; Semantic Assurance</p>
-      <hr />
-      <h2>Backend Health</h2>
-      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
-      {health ? (
-        <pre style={{ background: '#f4f4f4', padding: '1rem', borderRadius: '4px' }}>
-          {JSON.stringify(health, null, 2)}
-        </pre>
-      ) : (
-        !error && <p>Loading…</p>
-      )}
-    </div>
-  )
-}
+    <BrowserRouter>
+      <EnterpriseShell>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/migrations" element={<MigrationsPage />} />
+          <Route path="/migrations/new" element={<NewMigrationPage />} />
+          <Route path="/migrations/:migrationId/*" element={<MigrationWorkspace />} />
+        </Routes>
+      </EnterpriseShell>
+    </BrowserRouter>
+  );
+};
 
-export default App
+export default App;
