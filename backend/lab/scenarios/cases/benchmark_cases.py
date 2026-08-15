@@ -20,8 +20,6 @@ class BoundaryRefundScenario(BaseScenario):
         tx_df = dfs["transactions"].copy()
 
         completed_mask = tx_df["status"] == "COMPLETED"
-        completed_indices = tx_df.index[completed_mask]
-
         refund_mask = tx_df["is_refund"]
         refund_indices = tx_df.index[refund_mask][:3]
 
@@ -31,8 +29,9 @@ class BoundaryRefundScenario(BaseScenario):
             tx_df.loc[refund_indices[2], "amount"] = 500.01
 
         if profile_name in ("dev", "demo", "benchmark"):
-            num_boundary = min(10512, len(completed_indices))
-            tx_df.loc[completed_indices[:num_boundary], "amount"] = 500.00
+            target_indices = tx_df.index[completed_mask & ~tx_df.index.isin(refund_indices[:3])]
+            num_boundary = min(10512, len(target_indices))
+            tx_df.loc[target_indices[:num_boundary], "amount"] = 500.00
 
         dfs["transactions"] = tx_df
         return dfs
