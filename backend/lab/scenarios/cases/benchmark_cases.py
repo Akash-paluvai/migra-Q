@@ -22,17 +22,17 @@ class BoundaryRefundScenario(BaseScenario):
         completed_mask = tx_df["status"] == "COMPLETED"
         completed_indices = tx_df.index[completed_mask]
 
+        refund_mask = tx_df["is_refund"]
+        refund_indices = tx_df.index[refund_mask][:3]
+
+        if len(refund_indices) >= 3:
+            tx_df.loc[refund_indices[0], "amount"] = 499.99
+            tx_df.loc[refund_indices[1], "amount"] = 500.00
+            tx_df.loc[refund_indices[2], "amount"] = 500.01
+
         if profile_name in ("dev", "demo", "benchmark"):
             num_boundary = min(10512, len(completed_indices))
             tx_df.loc[completed_indices[:num_boundary], "amount"] = 500.00
-        else:
-            refund_mask = tx_df["is_refund"]
-            refund_indices = tx_df.index[refund_mask][:3]
-
-            if len(refund_indices) >= 3:
-                tx_df.loc[refund_indices[0], "amount"] = 499.99
-                tx_df.loc[refund_indices[1], "amount"] = 500.00
-                tx_df.loc[refund_indices[2], "amount"] = 500.01
 
         dfs["transactions"] = tx_df
         return dfs
