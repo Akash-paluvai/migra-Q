@@ -113,3 +113,35 @@ class DiscrepancyEvidenceRecordModel(Base):
     evidence_type = Column(String(64), nullable=False)
     evidence_json = Column(Text, nullable=False)
     ordinal = Column(Integer, nullable=False, default=1)
+
+
+class TranslationRecord(Base):
+    """PostgreSQL table storing translation audit records."""
+
+    __tablename__ = "translations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    translation_id = Column(String(64), unique=True, index=True, nullable=False)
+    request_id = Column(String(64), index=True, nullable=False)
+    source_dialect = Column(String(32), nullable=False)
+    target_dialect = Column(String(32), nullable=False)
+    source_sql_hash = Column(String(64), index=True, nullable=False)
+    translation_context_hash = Column(String(64), index=True, nullable=False)
+    prompt_hash = Column(String(64), index=True, nullable=False)
+    provider = Column(String(32), nullable=False)
+    model = Column(String(64), nullable=False)
+    status = Column(String(32), nullable=False)
+    candidate_validation_status = Column(String(32), nullable=True)
+    target_sql = Column(Text, nullable=True)
+    assumptions_json = Column(Text, nullable=True)
+    potential_risks_json = Column(Text, nullable=True)
+    translated_rules_json = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    duration_ms = Column(Float, nullable=False, default=0.0)
+    retry_count = Column(Integer, nullable=False, default=0)
+    token_usage_json = Column(Text, nullable=True)
+    error_code = Column(String(128), nullable=True)
+    error_message = Column(Text, nullable=True)
+    translator_version = Column(String(32), nullable=False, default="0.1.0")
+    prompt_version = Column(String(32), nullable=False, default="0.1.0")
+

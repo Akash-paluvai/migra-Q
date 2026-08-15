@@ -20,22 +20,23 @@ Deterministic Core:          LLM / AI (later phases):
   - assurance gating
 ```
 
-## Current Architecture (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5)
+## Current Architecture (Phase 0 – Phase 6)
 
 ```
 ┌────────────┐      ┌────────────────┐      ┌────────────┐
-│  Frontend   │─────▶│  FastAPI        │─────▶│ PostgreSQL │
-│  React/TS   │      │  Backend        │      │ (Audit Log)│
+│  Frontend  │─────▶│  FastAPI       │─────▶│ PostgreSQL │
+│  React/TS  │      │  Backend       │      │ (Audit Log)│
 └────────────┘      │                │      └────────────┘
-                     │  analyzer/     │
-                     │  lab/          │      ┌────────────┐
-                     │  execution/    │─────▶│ DuckDB     │
-                     │  validation/   │      │ (Parquet)  │
-                     │  diagnosis/    │      └────────────┘
-                     │   extractor    │
-                     │   classifiers  │
-                     │   consolidator │
-                     └────────────────┘
+                    │  analyzer/     │
+                    │  lab/          │      ┌────────────┐
+                    │  execution/    │─────▶│ DuckDB     │
+                    │  validation/   │      │ (Parquet)  │
+                    │  diagnosis/    │      └────────────┘
+                    │  translator/   │
+                    │   providers    │      ┌────────────┐
+                    │   prompts      │─────▶│ Generative │
+                    │   validator    │      │ LLM (AI)   │
+                    └────────────────┘      └────────────┘
 ```
 
 ## Services & Modules
@@ -46,6 +47,7 @@ Deterministic Core:          LLM / AI (later phases):
 | backend.lab        | Python / Pandas     | Synthetic dataset & 20 benchmark scenario lab              |
 | backend.execution  | Python / DuckDB     | Read-only isolated execution engine & Parquet artifacts     |
 | backend.validation | Python              | Independent semantic validation (schema, rows, aggregates, rules, edge cases) |
-| backend.diagnosis  | Python              | Discrepancy classification & evidence consolidation (11 categories, SHA256 signatures) |
+| backend.diagnosis  | Python              | Discrepancy classification & evidence consolidation (11 categories) |
+| backend.translator | Python / OpenAI SDK | AI-assisted SQL translation candidate generation & prompt engineering |
 | backend            | Python / FastAPI    | API endpoints                                               |
-| postgres           | PostgreSQL 16       | Audit records (`executions`, `validations`, `diagnoses`, `discrepancies`) |
+| postgres           | PostgreSQL 16       | Audit records (`executions`, `validations`, `diagnoses`, `translations`) |
