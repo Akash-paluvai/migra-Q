@@ -1,6 +1,6 @@
-"""Phase 9 Migration Assurance Repository — in-memory (test) and PostgreSQL (production)."""
-
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 from backend.assurance.models import (
     MigrationAssuranceReport,
@@ -86,20 +86,34 @@ class MigrationAssuranceRepository:
 
             session = get_db_session()
             try:
-                db_record = MigrationRecordModel(
-                    migration_id=record.migration_id,
-                    source_dialect=record.source_dialect,
-                    target_dialect=record.target_dialect,
-                    source_sql_hash=record.source_sql_hash,
-                    dataset_id=record.dataset_id,
-                    dataset_hash=record.dataset_hash,
-                    current_state=record.current_state.value,
-                    final_status=record.final_status.value,
-                    assurance_score=record.assurance_score,
-                    evidence_coverage=record.evidence_coverage,
-                    assurance_version=record.assurance_version,
-                )
-                session.add(db_record)
+                existing = session.query(MigrationRecordModel).filter_by(migration_id=record.migration_id).first()
+                if existing:
+                    existing.source_dialect = record.source_dialect
+                    existing.target_dialect = record.target_dialect
+                    existing.source_sql_hash = record.source_sql_hash
+                    existing.dataset_id = record.dataset_id
+                    existing.dataset_hash = record.dataset_hash
+                    existing.current_state = record.current_state.value
+                    existing.final_status = record.final_status.value
+                    existing.assurance_score = record.assurance_score
+                    existing.evidence_coverage = record.evidence_coverage
+                    existing.assurance_version = record.assurance_version
+                    existing.updated_at = datetime.now(timezone.utc)
+                else:
+                    db_record = MigrationRecordModel(
+                        migration_id=record.migration_id,
+                        source_dialect=record.source_dialect,
+                        target_dialect=record.target_dialect,
+                        source_sql_hash=record.source_sql_hash,
+                        dataset_id=record.dataset_id,
+                        dataset_hash=record.dataset_hash,
+                        current_state=record.current_state.value,
+                        final_status=record.final_status.value,
+                        assurance_score=record.assurance_score,
+                        evidence_coverage=record.evidence_coverage,
+                        assurance_version=record.assurance_version,
+                    )
+                    session.add(db_record)
                 session.commit()
             finally:
                 session.close()
@@ -136,18 +150,29 @@ class MigrationAssuranceRepository:
 
             session = get_db_session()
             try:
-                db_record = MigrationAssuranceReportModel(
-                    migration_id=report.migration_id,
-                    assurance_version=report.assurance_version,
-                    final_status=report.final_status.value,
-                    decision_reason=report.decision_reason,
-                    verification_path=report.verification_path.value,
-                    evidence_score=report.score.evidence_score,
-                    evidence_coverage=report.score.evidence_coverage,
-                    band=report.score.band.value,
-                    report_json=report.model_dump_json(),
-                )
-                session.add(db_record)
+                existing = session.query(MigrationAssuranceReportModel).filter_by(migration_id=report.migration_id).first()
+                if existing:
+                    existing.assurance_version = report.assurance_version
+                    existing.final_status = report.final_status.value
+                    existing.decision_reason = report.decision_reason
+                    existing.verification_path = report.verification_path.value
+                    existing.evidence_score = report.score.evidence_score
+                    existing.evidence_coverage = report.score.evidence_coverage
+                    existing.band = report.score.band.value
+                    existing.report_json = report.model_dump_json()
+                else:
+                    db_record = MigrationAssuranceReportModel(
+                        migration_id=report.migration_id,
+                        assurance_version=report.assurance_version,
+                        final_status=report.final_status.value,
+                        decision_reason=report.decision_reason,
+                        verification_path=report.verification_path.value,
+                        evidence_score=report.score.evidence_score,
+                        evidence_coverage=report.score.evidence_coverage,
+                        band=report.score.band.value,
+                        report_json=report.model_dump_json(),
+                    )
+                    session.add(db_record)
                 session.commit()
             finally:
                 session.close()

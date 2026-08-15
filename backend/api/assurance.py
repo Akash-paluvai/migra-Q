@@ -9,10 +9,12 @@ from pydantic import BaseModel
 
 from backend.assurance.models import MigrationAssuranceReport, MigrationRecord
 from backend.assurance.service import MigrationAssuranceService
+from backend.orchestrator import MigrationOrchestrator, PipelineRunRequest
 
 assurance_router = APIRouter(prefix="/api/v1/migrations", tags=["assurance"])
 
 _service = MigrationAssuranceService()
+_orchestrator = MigrationOrchestrator()
 
 
 class MigrationRunRequest(BaseModel):
@@ -44,19 +46,16 @@ def get_flagship_migration() -> MigrationRecord:
 
 @assurance_router.post("/run")
 def run_migration(req: MigrationRunRequest) -> MigrationRecord:
-    """Trigger a new migration workflow run dynamically for user SQL & parameters."""
-    report = _service.run_migration_pipeline(
-        source_sql=req.source_sql,
-        source_dialect=req.source_dialect,
-        target_dialect=req.target_dialect,
-        dataset_id=req.dataset_id,
-    )
-    record = _service.get_migration(report.migration_id)
-    if record is None:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve created migration record {report.migration_id}"
+    """Trigger a new migration workflow run dynamically via MigrationOrchestrator."""
+    result = _orchestrator.run(
+        PipelineRunRequest(
+            source_sql=req.source_sql,
+            source_dialect=req.source_dialect,
+            target_dialect=req.target_dialect,
+            dataset_id=req.dataset_id,
         )
-    return record
+    )
+    return result.migration_record
 
 
 @assurance_router.get("/{migration_id}")

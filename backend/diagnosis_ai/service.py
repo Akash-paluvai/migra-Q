@@ -108,9 +108,12 @@ class DiagnosisAIService:
         provider_type = (provider_name or settings.LLM_PROVIDER).lower()
         provider: AIDiagnosisProvider
         if mock_mode or provider_type == "mock":
-            provider = MockDiagnosisProvider(mode=mock_mode or "MOCK_BOUNDARY_REPAIR")
+            mode = mock_mode if (mock_mode and mock_mode.startswith("MOCK_")) else "MOCK_BOUNDARY_REPAIR"
+            if mode == "MOCK_BOUNDARY_BUG":
+                mode = "MOCK_BOUNDARY_REPAIR"
+            provider = MockDiagnosisProvider(mode=mode)
             p_name = "mock"
-            p_model = mock_mode or "MOCK_BOUNDARY_REPAIR"
+            p_model = mode
         elif provider_type == "openai":
             provider = OpenAIDiagnosisProvider()
             p_name = "openai"
