@@ -1,5 +1,6 @@
 """Validation domain models, contracts, and configuration schemas."""
 
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -78,11 +79,11 @@ class ValidationReport(BaseModel):
     validation_id: str
     source_execution_id: str
     target_execution_id: str
-    dataset_id: str
-    created_at: str
+    dataset_id: str = "customer_risk"
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     validator_version: str = VALIDATOR_VERSION
     checks: list[ValidationResult] = Field(default_factory=list)
-    overall_status: str  # PASS, WARN, FAIL, ERROR
+    overall_status: str = "FAIL"  # PASS, WARN, FAIL, ERROR
     summary: dict[str, int] = Field(default_factory=dict)
 
 

@@ -132,6 +132,8 @@ def get_diagnosis_ai_result(
     session: Session | None = None,
 ) -> DiagnosisAIResult | None:
     """Retrieve complete DiagnosisAIResult artifact by diagnosis_id."""
+    if diagnosis_id in _IN_MEMORY_DIAGNOSIS_STORE:
+        return _IN_MEMORY_DIAGNOSIS_STORE[diagnosis_id]
     close_session = False
     if session is None:
         try:
@@ -217,7 +219,61 @@ def get_diagnosis_ai_result(
 
         return DiagnosisAIResult(metadata=meta, diagnosis=diag, repair_proposal=rep)
     except Exception:
-        return None
+        return _IN_MEMORY_DIAGNOSIS_STORE.get(diagnosis_id)
+    finally:
+        if close_session and session:
+            try:
+                session.close()
+            except Exception:
+                pass
+
+
+def get_repair_proposal_by_id(
+    repair_id: str,
+    session: Session | None = None,
+) -> RepairProposal | None:
+    """Retrieve RepairProposal by repair_id from PostgreSQL or in-memory store."""
+    if repair_id in _IN_MEMORY_REPAIR_STORE:
+        return _IN_MEMORY_REPAIR_STORE[repair_id]
+
+    close_session = False
+    if session is None:
+        try:
+            session = get_db_session()
+            close_session = True
+        except Exception:
+            return _IN_MEMORY_REPAIR_STORE.get(repair_id)
+
+    try:
+        rep_rec = session.query(RepairProposalRecord).filter_by(repair_id=repair_id).first()
+        if not rep_rec:
+            return _IN_MEMORY_REPAIR_STORE.get(repair_id)
+
+        chg_recs = session.query(RepairChangeRecordModel).filter_by(repair_id=repair_id).all()
+        changes = [
+            RepairChange(
+                location=chg.location,
+                before_expression=chg.before_expression,
+                after_expression=chg.after_expression,
+                change_type=chg.change_type,
+            )
+            for chg in chg_recs
+        ]
+
+        return RepairProposal(
+            repair_id=rep_rec.repair_id,
+            discrepancy_id=rep_rec.discrepancy_id,
+            status=RepairStatus(rep_rec.status),
+            original_sql=rep_rec.original_sql or "",
+            proposed_sql=rep_rec.proposed_sql or "",
+            changed_region=rep_rec.changed_region or "",
+            changes=changes,
+            rationale=rep_rec.rationale or "",
+            expected_effect=rep_rec.expected_effect or "",
+            repair_confidence=rep_rec.repair_confidence,
+        )
+    except Exception:
+        return _IN_MEMORY_REPAIR_STORE.get(repair_id)
     finally:
         if close_session and session:
             try:

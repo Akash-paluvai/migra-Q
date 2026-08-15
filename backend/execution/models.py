@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -36,7 +37,6 @@ class ExecutionRequest(BaseModel):
     migration_id: str | None = None
     label: str | None = None
 
-
 class ExecutionResult(BaseModel):
     execution_id: str
     query_hash: str
@@ -44,9 +44,9 @@ class ExecutionResult(BaseModel):
     dataset_hash: str
     execution_mode: ExecutionMode = ExecutionMode.SOURCE
     status: ExecutionStatus
-    timestamp: str
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     duration_ms: float = 0.0
-    row_count: int
+    row_count: int = 0
     columns: list[ColumnSchema] = Field(default_factory=list)
     sample_data: list[dict[str, Any]] | None = None
     sample_is_ordered: bool = False

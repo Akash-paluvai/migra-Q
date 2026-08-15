@@ -1,7 +1,4 @@
-"""Pydantic domain models for Phase 7 AI Diagnosis & Repair Proposal Engine."""
-
-from __future__ import annotations
-
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -63,11 +60,11 @@ class AIDiagnosis(BaseModel):
 
     diagnosis_id: str
     discrepancy_id: str
-    status: DiagnosisStatus
-    observed_change: str
-    likely_mechanism: str
-    possible_cause: str
-    uncertainty: str
+    status: DiagnosisStatus = DiagnosisStatus.DIAGNOSED
+    observed_change: str = ""
+    likely_mechanism: str = ""
+    possible_cause: str = ""
+    uncertainty: str = ""
     claims: list[GroundedClaim] = Field(default_factory=list)
     diagnosis_confidence: float = 0.0
 
@@ -89,10 +86,10 @@ class RepairProposal(BaseModel):
     status: RepairStatus
     original_sql: str
     proposed_sql: str
-    changed_region: str
+    changed_region: str = ""
     changes: list[RepairChange] = Field(default_factory=list)
-    rationale: str
-    expected_effect: str
+    rationale: str = ""
+    expected_effect: str = ""
     claims: list[GroundedClaim] = Field(default_factory=list)
     constraints_checked: list[str] = Field(default_factory=list)
     repair_confidence: float = 0.0
@@ -127,7 +124,6 @@ class DiagnosisContext(BaseModel):
     evidence_pack: EvidencePack
     context_hash: str
 
-
 class DiagnosisAIMetadata(BaseModel):
     """Metadata tracking provider execution, hashes, and token metrics."""
 
@@ -137,7 +133,7 @@ class DiagnosisAIMetadata(BaseModel):
     model: str
     context_hash: str
     prompt_hash: str
-    created_at: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     duration_ms: float = 0.0
     retry_count: int = 0
     input_token_count: int | None = None

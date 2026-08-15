@@ -208,3 +208,55 @@ class RepairChangeRecordModel(Base):
     change_type = Column(String(32), nullable=False, default="MODIFY")
 
 
+class RepairVerificationRecordModel(Base):
+    """PostgreSQL table storing Phase 8 repair verification audit results."""
+
+    __tablename__ = "repair_verifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    verification_id = Column(String(64), unique=True, index=True, nullable=False)
+    repair_id = Column(String(64), index=True, nullable=False)
+    discrepancy_id = Column(String(64), index=True, nullable=False)
+    validation_id_before = Column(String(64), nullable=False)
+    validation_id_after = Column(String(64), nullable=True)
+    execution_id_before = Column(String(64), nullable=False)
+    execution_id_repaired = Column(String(64), nullable=True)
+    status = Column(String(32), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    verification_version = Column(String(32), nullable=False, default="1.0.0")
+    original_discrepancy_count = Column(Integer, nullable=False, default=0)
+    remaining_discrepancy_count = Column(Integer, nullable=False, default=0)
+    new_discrepancy_count = Column(Integer, nullable=False, default=0)
+    resolved_discrepancy_count = Column(Integer, nullable=False, default=0)
+    affected_rows_before = Column(Integer, nullable=False, default=0)
+    affected_rows_after = Column(Integer, nullable=False, default=0)
+    affected_percentage_before = Column(Float, nullable=False, default=0.0)
+    affected_percentage_after = Column(Float, nullable=False, default=0.0)
+    reduction_count = Column(Integer, nullable=False, default=0)
+    reduction_percentage = Column(Float, nullable=False, default=0.0)
+    summary_json = Column(Text, nullable=True)
+    evidence_json = Column(Text, nullable=True)
+    rejection_reason = Column(String(128), nullable=True)
+    error_code = Column(String(128), nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class RepairOutcomeRecordModel(Base):
+    """PostgreSQL table storing individual discrepancy repair outcomes."""
+
+    __tablename__ = "repair_outcomes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    verification_id = Column(String(64), index=True, nullable=False)
+    discrepancy_id_before = Column(String(64), nullable=False)
+    status = Column(String(32), nullable=False)
+    affected_rows_before = Column(Integer, nullable=False, default=0)
+    affected_rows_after = Column(Integer, nullable=False, default=0)
+    reduction_count = Column(Integer, nullable=False, default=0)
+    reduction_percentage = Column(Float, nullable=False, default=0.0)
+    matching_after_discrepancy_ids_json = Column(Text, nullable=True)
+    new_discrepancy_ids_json = Column(Text, nullable=True)
+    summary = Column(Text, nullable=True)
+
+
+

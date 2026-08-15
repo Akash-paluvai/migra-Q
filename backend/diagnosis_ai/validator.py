@@ -67,6 +67,9 @@ class RepairProposalValidator:
         if orig_tree is None or prop_tree is None:
             return False, "Contract validation failed: AST could not be generated."
 
+        if not (hasattr(orig_tree, "selects") and hasattr(prop_tree, "selects")):
+            return False, "Contract validation failed: Query does not contain SELECT expressions."
+
         # Check output column aliases
         orig_aliases = [
             select.alias_or_name.lower()

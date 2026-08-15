@@ -1,5 +1,4 @@
-"""Domain models, contracts, and taxonomy definitions for discrepancy classification."""
-
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -112,13 +111,12 @@ class DiscrepancyRecord(BaseModel):
     discrepancy_signature: str = ""
     created_at: str
 
-
 class DiscrepancyReport(BaseModel):
     """Complete aggregated discrepancy report for a validation."""
 
     diagnosis_id: str
     validation_id: str
-    created_at: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     classifier_version: str = CLASSIFIER_VERSION
     discrepancies: list[DiscrepancyRecord] = Field(default_factory=list)
     discrepancy_count: int = 0

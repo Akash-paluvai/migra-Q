@@ -78,7 +78,7 @@ class RepairScopeChecker:
         orig_where_sql = orig_w.sql(dialect_name) if orig_w else ""
         prop_where_sql = prop_w.sql(dialect_name) if prop_w else ""
 
-        if orig_where_sql != prop_where_sql:
+        if orig_where_sql != prop_where_sql and "where" not in changed_region.lower():
             msg = (
                 f"UNJUSTIFIED_SCOPE_CHANGE: Repair modified WHERE clause ('{orig_where_sql}' vs "
                 f"'{prop_where_sql}') which is outside target region '{changed_region}'."
