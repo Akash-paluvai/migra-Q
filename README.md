@@ -8,16 +8,11 @@
 
 ## Key Features
 
-- 🔄 **Multi-Dialect SQL Translation**: Automated transformation between SQL dialects (e.g. Oracle PL/SQL to PostgreSQL, Snowflake to BigQuery) using AST parsing (`sqlglot`) and LLM-assisted fallback translation.
-- 🎯 **5-Stage Equivalence Validation Engine**:
-  1. **Schema Integrity**: Structural verification of tables, column types, nullability, primary/foreign key constraints.
-  2. **Row-Level Equivalence**: Cryptographic row-hashing and record matching.
-  3. **Aggregate Invariants**: Multi-dimensional verification of SUM, COUNT, AVG, MIN, MAX, and GROUP BY grouping sets.
-  4. **Business Rule Verification**: Custom constraint assertions across source and target queries.
-  5. **Edge-Case Stress Testing**: Null semantics, collation, floating-point precision, and timezone timestamp validation.
-- 🩺 **Diagnostic & Root Cause Engine**: Automated classification of mismatch causes (Type Mismatch, Collation/Ordering, Null Propagation, Window Function behavior, Join semantics).
-- 🛠️ **Automated Repair Agent**: Agentic SQL repair engine synthesizing AST patches and optimized SQL replacements.
-- 📊 **Assurance Scoring & Quality Gates**: Quantitative 0-100 confidence scorecard for CI/CD deployment approval gates.
+- 🖥️ **Phase 10 Enterprise Product UI**: Incedo-inspired light enterprise visual design language (`LOGIC → BEHAVIOR → EVIDENCE → REPAIR → ASSURANCE`) powered 100% by backend REST APIs.
+- 🔄 **Multi-Dialect SQL Translation**: Automated transformation between SQL dialects (e.g. Teradata / Oracle PL/SQL to BigQuery / Snowflake) using dialect-aware LLM translation.
+- 🎯 **5-Stage Equivalence Validation Engine**: Multi-layer deterministic sandbox execution comparing output schemas, row sets, aggregates, business rules, and edge cases.
+- 🩺 **AI Discrepancy Diagnosis & Repair**: Agentic classification of semantic discrepancies (e.g. boundary condition operators) and automated AST patch synthesis.
+- 📊 **Assurance Scoring & Quality Gates**: Quantitative 0-100 score renormalized over applicable components and 11 deterministic hard quality gates.
 - 🏎️ **In-Memory High-Speed Execution**: Powered by embedded **DuckDB** sandbox for rapid local validation without touching production databases.
 - 📈 **Benchmark Suite**: Standardized test cases and metrics for evaluating translation accuracy, latency, and drift.
 
