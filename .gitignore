@@ -38,7 +38,7 @@ frontend/build/
 .idea/
 # Data & Runtime Results
 data/
-datasets/
+/datasets/
 
 # OS
 .DS_Store
