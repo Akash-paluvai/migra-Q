@@ -63,3 +63,53 @@ class ValidationResultRecord(Base):
     evidence_json = Column(Text, nullable=True)
     metadata_json = Column(Text, nullable=True)
     duration_ms = Column(Float, nullable=False, default=0.0)
+
+
+class DiagnosisRecord(Base):
+    """PostgreSQL table storing diagnosis run audit records."""
+
+    __tablename__ = "diagnoses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    diagnosis_id = Column(String(64), unique=True, index=True, nullable=False)
+    validation_id = Column(String(64), index=True, nullable=False)
+    classifier_version = Column(String(32), nullable=False, default="0.1.0")
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    summary_json = Column(Text, nullable=True)
+
+
+class DiscrepancyRecordModel(Base):
+    """PostgreSQL table storing individual discrepancy records."""
+
+    __tablename__ = "discrepancies"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    diagnosis_id = Column(String(64), index=True, nullable=False)
+    discrepancy_id = Column(String(32), nullable=False)  # D-001 ...
+    category = Column(String(64), nullable=False)
+    subcategory = Column(String(64), nullable=True)
+    severity = Column(String(32), nullable=False)
+    classification_confidence = Column(Float, nullable=False, default=1.0)
+    source_location = Column(String(256), nullable=True)
+    target_location = Column(String(256), nullable=True)
+    source_expression = Column(Text, nullable=True)
+    target_expression = Column(Text, nullable=True)
+    affected_row_count = Column(Integer, nullable=False, default=0)
+    affected_percentage = Column(Float, nullable=False, default=0.0)
+    status = Column(String(32), nullable=False, default="OPEN")
+    reason = Column(Text, nullable=True)
+    analysis_path = Column(String(256), nullable=True)
+    discrepancy_signature = Column(String(64), nullable=False)
+    metadata_json = Column(Text, nullable=True)
+
+
+class DiscrepancyEvidenceRecordModel(Base):
+    """PostgreSQL table storing evidence items for a discrepancy."""
+
+    __tablename__ = "discrepancy_evidence"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    discrepancy_id = Column(String(64), index=True, nullable=False)
+    evidence_type = Column(String(64), nullable=False)
+    evidence_json = Column(Text, nullable=False)
+    ordinal = Column(Integer, nullable=False, default=1)

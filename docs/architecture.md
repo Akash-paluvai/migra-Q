@@ -20,7 +20,7 @@ Deterministic Core:          LLM / AI (later phases):
   - assurance gating
 ```
 
-## Current Architecture (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4)
+## Current Architecture (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5)
 
 ```
 ┌────────────┐      ┌────────────────┐      ┌────────────┐
@@ -31,8 +31,10 @@ Deterministic Core:          LLM / AI (later phases):
                      │  lab/          │      ┌────────────┐
                      │  execution/    │─────▶│ DuckDB     │
                      │  validation/   │      │ (Parquet)  │
-                     │   orchestrator │      └────────────┘
-                     │   validators   │
+                     │  diagnosis/    │      └────────────┘
+                     │   extractor    │
+                     │   classifiers  │
+                     │   consolidator │
                      └────────────────┘
 ```
 
@@ -44,5 +46,6 @@ Deterministic Core:          LLM / AI (later phases):
 | backend.lab        | Python / Pandas     | Synthetic dataset & 20 benchmark scenario lab              |
 | backend.execution  | Python / DuckDB     | Read-only isolated execution engine & Parquet artifacts     |
 | backend.validation | Python              | Independent semantic validation (schema, rows, aggregates, rules, edge cases) |
+| backend.diagnosis  | Python              | Discrepancy classification & evidence consolidation (11 categories, SHA256 signatures) |
 | backend            | Python / FastAPI    | API endpoints                                               |
-| postgres           | PostgreSQL 16       | Audit records (`executions`, `validations`, `validation_results` tables) |
+| postgres           | PostgreSQL 16       | Audit records (`executions`, `validations`, `diagnoses`, `discrepancies`) |

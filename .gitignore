@@ -35,8 +35,9 @@ frontend/build/
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
+# Data & Runtime Results
+data/
+datasets/
 
 # OS
 .DS_Store
