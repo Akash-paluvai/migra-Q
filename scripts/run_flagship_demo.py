@@ -9,7 +9,7 @@ Phase 3 execution (DuckDB Sandbox)
         ↓
 Phase 4 validation
         ↓
-Phase 5: BOUNDARY_CONDITION (10,512 affected)
+Phase 5: BOUNDARY_CONDITION (profile-derived affected rows)
         ↓
 Phase 7: repair proposal (> 500)
         ↓
@@ -64,6 +64,7 @@ def run_flagship_demo():
     dataset_dir = PROJECT_ROOT / "datasets" / "generated" / "customer_risk"
     profile_name = "test" if "--test-profile" in sys.argv else "dev"
     print(f"\n[STEP 0] Generating synthetic dataset 'customer_risk' (BOUNDARY_REFUND_001, profile={profile_name}) at:\n  {dataset_dir}")
+    # Scenario boundary_rows will be set in metadata after generation.
     scen = get_scenario("BOUNDARY_REFUND_001")
     dfs = scen.generate(seed=42, profile_name=profile_name)
     file_names, checksums = export_to_parquet(dfs, dataset_dir)
@@ -86,7 +87,9 @@ def run_flagship_demo():
     with open(manifest_path, "w", encoding="utf-8") as f:
         f.write(manifest.model_dump_json(indent=2))
 
+    boundary_rows = scen.metadata.scenario_params.get("boundary_rows", 0)
     print(f"  -> Generated {len(dfs)} tables: {list(file_names.keys())}")
+    print(f"  -> Boundary-affected rows (profile={profile_name}): {boundary_rows:,}")
     print(f"  -> Manifest created: {manifest_path}")
 
     # Flagship Source SQL
@@ -190,6 +193,8 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;
     print("\n" + "-" * 85)
     print("[PHASE 7] AI-GROUNDED DIAGNOSIS & REPAIR PROPOSAL ENGINE")
     print("-" * 85)
+    actual_affected_rows = diag_rec.affected_row_count if diag_rec else 0
+    actual_affected_pct = diag_rec.affected_percentage if diag_rec else 0.0
     diag_ai_res = DiagnosisAIService.diagnose_discrepancy(
         discrepancy_id=targeted_discrepancy_id,
         category="BOUNDARY_CONDITION",
@@ -200,8 +205,8 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;
         target_dialect="bigquery",
         source_expression="t.amount > 500",
         target_expression="t.amount >= 500",
-        affected_row_count=10512,
-        affected_percentage=10.51,
+        affected_row_count=actual_affected_rows,
+        affected_percentage=actual_affected_pct,
         affected_columns=["risk_class"],
         representative_examples=[
             {"customer_id": "CUST-001", "amount": 500.00, "source_risk_class": "NORMAL", "target_risk_class": "HIGH_RISK"}

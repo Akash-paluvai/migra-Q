@@ -37,6 +37,11 @@ Deterministic Core (Phases 1-5, Phase 8):      LLM / AI Gating (Phases 6-7):
                     │    executor adapter     │      │ LLM (AI)   │
                     │    discrepancy_diff     │      └────────────┘
                     │    status_determiner    │
+                    │  assurance/ (Phase 9)   │
+                    │    state machine        │
+                    │    hard gates (11)      │
+                    │    scoring + coverage   │
+                    │    decision engine      │
                     └─────────────────────────┘
 ```
 
@@ -51,6 +56,7 @@ Deterministic Core (Phases 1-5, Phase 8):      LLM / AI Gating (Phases 6-7):
 7. **Phase 6**: AI-Assisted SQL Translation Engine
 8. **Phase 7**: AI-Grounded Discrepancy Diagnosis & Repair Proposal Engine
 9. **Phase 8**: Repair Execution & Deterministic Re-Validation Engine (Deterministic candidate validation & formal proof chain)
+10. **Phase 9**: Migration Assurance & Audit Decision Layer (State machine, 11 hard gates, evidence scoring with coverage, deterministic decision engine)
 
 ## Services & Modules
 
@@ -64,5 +70,6 @@ Deterministic Core (Phases 1-5, Phase 8):      LLM / AI Gating (Phases 6-7):
 | `backend.translator` | Python / OpenAI SDK | AI-assisted SQL translation candidate generation |
 | `backend.diagnosis_ai` | Python / OpenAI SDK | AI-grounded discrepancy diagnosis & repair proposal generation |
 | `backend.repair_verification` | Python | Deterministic candidate integrity validation, DuckDB execution, re-validation & proof chain |
+| `backend.assurance` | Python | Migration-level state machine, 11 hard gates, evidence scoring with coverage, deterministic decision engine |
 | `backend` | Python / FastAPI | REST API endpoints for all phases |
-| `postgres` | PostgreSQL 16 | Audit records (`executions`, `validations`, `diagnoses`, `repair_verifications`, `repair_outcomes`) |
+| `postgres` | PostgreSQL 16 | Audit records (`executions`, `validations`, `diagnoses`, `repair_verifications`, `repair_outcomes`, `migrations`, `migration_assurance_reports`) |

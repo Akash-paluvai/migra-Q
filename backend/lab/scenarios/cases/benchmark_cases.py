@@ -13,7 +13,12 @@ from backend.lab.scenarios.base import BaseScenario
 
 
 class BoundaryRefundScenario(BaseScenario):
-    """Flagship scenario: customer risk refund boundary around 500 (499.99, 500.00, 500.01)."""
+    """Flagship scenario: customer risk refund boundary around 500 (499.99, 500.00, 500.01).
+
+    After generation, ``self.metadata.scenario_params["boundary_rows"]`` contains
+    the actual number of COMPLETED transactions set to the boundary value 500.00.
+    This count is profile-dependent and must not be hardcoded.
+    """
 
     def generate(self, seed: int = 42, profile_name: str = "dev") -> dict[str, pd.DataFrame]:
         dfs = build_base_dataset(seed=seed, profile_name=profile_name)
@@ -28,10 +33,14 @@ class BoundaryRefundScenario(BaseScenario):
             tx_df.loc[refund_indices[1], "amount"] = 500.00
             tx_df.loc[refund_indices[2], "amount"] = 500.01
 
+        boundary_rows = 0
         if profile_name in ("dev", "demo", "benchmark"):
             target_indices = tx_df.index[completed_mask & ~tx_df.index.isin(refund_indices[:3])]
-            num_boundary = min(10512, len(target_indices))
-            tx_df.loc[target_indices[:num_boundary], "amount"] = 500.00
+            boundary_rows = len(target_indices)
+            tx_df.loc[target_indices, "amount"] = 500.00
+
+        # Expose actual boundary count in scenario metadata for downstream consumers.
+        self.metadata.scenario_params["boundary_rows"] = boundary_rows
 
         dfs["transactions"] = tx_df
         return dfs

@@ -259,4 +259,55 @@ class RepairOutcomeRecordModel(Base):
     summary = Column(Text, nullable=True)
 
 
+class MigrationRecordModel(Base):
+    """PostgreSQL table storing Phase 9 migration records."""
+
+    __tablename__ = "migrations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    migration_id = Column(String(64), unique=True, index=True, nullable=False)
+    source_dialect = Column(String(32), nullable=False)
+    target_dialect = Column(String(32), nullable=False)
+    source_sql_hash = Column(String(64), nullable=False)
+    dataset_id = Column(String(128), nullable=False)
+    dataset_hash = Column(String(64), nullable=False)
+    current_state = Column(String(32), nullable=False, default="CREATED")
+    final_status = Column(String(32), nullable=False, default="IN_PROGRESS")
+    assurance_score = Column(Float, nullable=True)
+    evidence_coverage = Column(Float, nullable=True)
+    assurance_version = Column(String(32), nullable=False, default="1.0.0")
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class MigrationStateEventModel(Base):
+    """PostgreSQL table storing Phase 9 state transition events."""
+
+    __tablename__ = "migration_state_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    migration_id = Column(String(64), index=True, nullable=False)
+    from_state = Column(String(32), nullable=False)
+    to_state = Column(String(32), nullable=False)
+    reason = Column(Text, nullable=True)
+    artifact_id = Column(String(128), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class MigrationAssuranceReportModel(Base):
+    """PostgreSQL table storing Phase 9 assurance reports."""
+
+    __tablename__ = "migration_assurance_reports"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    migration_id = Column(String(64), unique=True, index=True, nullable=False)
+    assurance_version = Column(String(32), nullable=False, default="1.0.0")
+    final_status = Column(String(32), nullable=False)
+    decision_reason = Column(Text, nullable=True)
+    verification_path = Column(String(32), nullable=False)
+    evidence_score = Column(Float, nullable=False, default=0.0)
+    evidence_coverage = Column(Float, nullable=False, default=0.0)
+    band = Column(String(32), nullable=False)
+    report_json = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

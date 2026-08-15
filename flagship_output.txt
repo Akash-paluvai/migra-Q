@@ -1,0 +1,109 @@
+=====================================================================================
+MIGRA-Q FLAGSHIP END-TO-END DEMO & FULL AUDIT LINEAGE PROOF
+=====================================================================================
+
+[STEP 0] Generating synthetic dataset 'customer_risk' (BOUNDARY_REFUND_001, profile=dev) at:
+  /Users/akashpaluvai/college/migraq/datasets/generated/customer_risk
+  -> Generated 4 tables: ['customers', 'accounts', 'transactions', 'support_cases']
+  -> Manifest created: /Users/akashpaluvai/college/migraq/datasets/generated/customer_risk/manifest.json
+
+-------------------------------------------------------------------------------------
+[PHASE 1 & 6] SOURCE SQL + AI TRANSLATION ENGINE
+-------------------------------------------------------------------------------------
+Source SQL (Teradata baseline):
+SELECT
+    c.customer_id,
+    c.customer_segment,
+    SUM(t.amount) AS total_amount,
+    CASE
+        WHEN t.amount > 500
+        THEN 'HIGH_RISK'
+        ELSE 'NORMAL'
+    END AS risk_class
+FROM transactions AS t
+INNER JOIN customers AS c
+    ON t.customer_id = c.customer_id
+WHERE t.status = 'COMPLETED'
+GROUP BY c.customer_id, c.customer_segment, t.amount;
+
+-> Translation ID: trans-820c7a7859c1
+-> Migration Candidate SQL (BigQuery with '>=' boundary flaw):
+SELECT
+  c.customer_id,
+  c.customer_segment,
+  SUM(t.amount) AS total_amount,
+  CASE WHEN t.amount >= 500.00 THEN 'HIGH_RISK' ELSE 'NORMAL' END AS risk_class
+FROM transactions t
+JOIN customers c ON t.customer_id = c.customer_id
+WHERE t.status = 'COMPLETED'
+GROUP BY c.customer_id, c.customer_segment, t.amount;
+
+-------------------------------------------------------------------------------------
+[PHASE 3] DUCKDB EXECUTION SANDBOX
+-------------------------------------------------------------------------------------
+-> Source Execution ID:           8883830c-7416-4425-92e6-c9c8a84debbc
+   Status: SUCCESS    | Rows: 175,467 | Dataset Hash: 485c374c2ebe305a...
+-> Target Candidate Execution ID: 514346de-1374-4f19-bec9-47cbcb4a634b
+   Status: SUCCESS    | Rows: 175,467 | Dataset Hash: 485c374c2ebe305a...
+
+-------------------------------------------------------------------------------------
+[PHASE 4] MULTI-LAYER SEMANTIC VALIDATION ENGINE
+-------------------------------------------------------------------------------------
+-> Validation ID: eea7c7d7-095f-4657-a027-140142e8b44d
+-> Overall Status: FAIL
+   Check: SchemaValidator           Status: ValidationCheckStatus.PASS Mismatches: 0
+   Check: RowValidator              Status: ValidationCheckStatus.FAIL Mismatches: 6142
+   Check: AggregateValidator        Status: ValidationCheckStatus.PASS Mismatches: 0
+   Check: BusinessRuleValidator     Status: ValidationCheckStatus.SKIPPED Mismatches: 0
+   Check: EdgeCaseValidator         Status: ValidationCheckStatus.PASS Mismatches: 0
+
+-------------------------------------------------------------------------------------
+[PHASE 5] DISCREPANCY CLASSIFICATION & EVIDENCE CONSOLIDATION
+-------------------------------------------------------------------------------------
+-> Diagnosis ID: f3e0c687-9544-4ca4-b944-d371ed6d40dc
+-> Total Discrepancies Classified: 1
+   ID: D-001 | Category: BOUNDARY_CONDITION   | Affected Rows: 6,142 | Severity: HIGH
+   Reason: Source and target use identical operands but differ in boundary inclusivity: 't.amount > 500' vs 't.amount >= 500.00'. Execution evidence confirms 6142 affected rows.
+
+-------------------------------------------------------------------------------------
+[PHASE 7] AI-GROUNDED DIAGNOSIS & REPAIR PROPOSAL ENGINE
+-------------------------------------------------------------------------------------
+-> AI Diagnosis ID:    diag-ai-cf5bed455c07
+-> Repair Proposal ID:  rep-fabf09c8da4e
+-> Observed Change:    Target comparison operator changed from > to >=.
+-> Likely Mechanism:   Boundary comparison became inclusive.
+-> Proposed Repaired SQL:
+SELECT
+  c.customer_id,
+  c.customer_segment,
+  SUM(t.amount) AS total_amount,
+  CASE WHEN t.amount > 500.00 THEN 'HIGH_RISK' ELSE 'NORMAL' END AS risk_class
+FROM transactions t
+JOIN customers c ON t.customer_id = c.customer_id
+WHERE t.status = 'COMPLETED'
+GROUP BY c.customer_id, c.customer_segment, t.amount;
+
+-------------------------------------------------------------------------------------
+[PHASE 8] REPAIR EXECUTION & DETERMINISTIC RE-VALIDATION ENGINE
+-------------------------------------------------------------------------------------
+-> Verification ID:     ver-ai-5caf215ce4b6
+-> Final Proof Status:  VERIFIED
+-> Summary:            VERIFIED: Targeted discrepancy 'D-001' resolved (6142 → 0 affected rows, 100.0% reduction, 0 new discrepancies).
+
+Itemized Discrepancy Outcomes:
+   Discrepancy: D-001 | Status: RESOLVED | Affected Rows: 6,142 -> 0 (100.0% reduction)
+
+=====================================================================================
+MIGRA-Q COMPLETE AUDIT LINEAGE CHAIN PROOF
+=====================================================================================
+  Translation ID (Phase 6):         trans-820c7a7859c1
+  Source Execution ID (Phase 3):    8883830c-7416-4425-92e6-c9c8a84debbc
+  Target Execution ID (Phase 3):    514346de-1374-4f19-bec9-47cbcb4a634b
+  Validation ID (Phase 4):          eea7c7d7-095f-4657-a027-140142e8b44d
+  Diagnosis ID (Phase 5):           f3e0c687-9544-4ca4-b944-d371ed6d40dc
+  AI Diagnosis ID (Phase 7):        diag-ai-cf5bed455c07
+  Repair Proposal ID (Phase 7):     rep-fabf09c8da4e
+  Verification ID (Phase 8):        ver-ai-5caf215ce4b6
+  FINAL PROOF DECISION:             VERIFIED
+=====================================================================================
+DEMO SUCCESSFUL: Complete end-to-end audit lineage chain verified!
