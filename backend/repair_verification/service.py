@@ -282,6 +282,7 @@ class RepairVerificationService:
         )
         orchestrator_val = ValidationOrchestrator()
         val_report_after = orchestrator_val.validate(val_ctx_after)
+        ValidationService._persist_report_artifact(val_report_after)
         meta.validation_id_after = val_report_after.validation_id
         meta.validation_config_hash_after = DiscrepancyComparator.compute_config_hash(getattr(val_report_after, "config", None) or val_config)
 

@@ -50,10 +50,22 @@ from backend.lab.config import GENERATOR_VERSION, SCHEMA_VERSION  # noqa: E402
 from backend.lab.exporters.parquet import export_to_parquet  # noqa: E402
 from backend.lab.models import ALL_SCHEMAS, DatasetManifest  # noqa: E402
 from backend.lab.scenarios.registry import get_scenario  # noqa: E402
+from backend.assurance.service import MigrationAssuranceService  # noqa: E402
 from backend.repair_verification.service import RepairVerificationService  # noqa: E402
 from backend.translator.models import TranslationRequest  # noqa: E402
 from backend.translator.service import TranslationService  # noqa: E402
 from backend.validation.service import ValidationService  # noqa: E402
+
+
+from backend.assurance.cli import format_report  # noqa: E402
+
+
+def _print_assurance_report(report):
+    """Print the final assurance report in the user-facing format."""
+    print("")
+    print(format_report(report))
+    print("")
+
 
 
 def run_flagship_demo():
@@ -244,21 +256,45 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;
     for outcome in ver_res.outcomes:
         print(f"   Discrepancy: {outcome.discrepancy_id_before} | Status: {outcome.status.value} | Affected Rows: {outcome.affected_rows_before:,} -> {outcome.affected_rows_after:,} ({outcome.reduction_percentage:.1f}% reduction)")
 
-    print("\n" + "=" * 85)
-    print("MIGRA-Q COMPLETE AUDIT LINEAGE CHAIN PROOF")
-    print("=" * 85)
-    print(f"  Translation ID (Phase 6):         {translation_id}")
-    print(f"  Source Execution ID (Phase 3):    {source_execution_id}")
-    print(f"  Target Execution ID (Phase 3):    {target_execution_id}")
-    print(f"  Validation ID (Phase 4):          {validation_id}")
-    print(f"  Diagnosis ID (Phase 5):           {diagnosis_id}")
-    print(f"  AI Diagnosis ID (Phase 7):        {diagnosis_ai_id}")
-    print(f"  Repair Proposal ID (Phase 7):     {repair_id}")
-    print(f"  Verification ID (Phase 8):        {verification_id}")
-    print(f"  FINAL PROOF DECISION:             {ver_res.status.value}")
-    print("=" * 85)
-    print("DEMO SUCCESSFUL: Complete end-to-end audit lineage chain verified!")
+    # ─────────────────────────────────────────────────────────────────────
+    # PHASE 9: MIGRATION ASSURANCE & AUDIT DECISION LAYER
+    # ─────────────────────────────────────────────────────────────────────
+    print("\n" + "-" * 85)
+    print("[PHASE 9] MIGRATION ASSURANCE & AUDIT DECISION LAYER")
+    print("-" * 85)
+
+    assurance_service = MigrationAssuranceService()
+
+    # Create migration record
+    import hashlib
+    source_hash = hashlib.sha256(source_sql.encode()).hexdigest()[:16]
+    migration = assurance_service.create_migration(
+        source_dialect="teradata",
+        target_dialect="bigquery",
+        source_sql_hash=source_hash,
+        dataset_id="customer_risk",
+        dataset_hash=src_exec.dataset_hash,
+    )
+
+    # Evaluate assurance
+    assurance_report = assurance_service.evaluate_assurance(
+        migration_id=migration.migration_id,
+        translation_result=trans_res,
+        source_execution=src_exec,
+        target_execution=tgt_exec,
+        validation_report=val_report,
+        discrepancy_report=disc_report,
+        diagnosis_ai_result=diag_ai_res,
+        repair_verification_result=ver_res,
+    )
+
+    # Inject profile metadata for display
+    assurance_report.metadata["profile"] = profile_name
+
+    # Print the final assurance report
+    _print_assurance_report(assurance_report)
 
 
 if __name__ == "__main__":
     run_flagship_demo()
+

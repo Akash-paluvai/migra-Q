@@ -94,22 +94,9 @@ class MigrationAssuranceService:
         discrepancy_report: DiscrepancyReport | None = None,
         diagnosis_ai_result: DiagnosisAIResult | None = None,
         repair_verification_result: RepairVerificationResult | None = None,
+        validation_report_after: ValidationReport | None = None,
     ) -> MigrationAssuranceReport:
-        """Evaluate migration assurance from Phase 1–8 artifacts.
-
-        Args:
-            migration_id: Migration record ID.
-            translation_result: Phase 6 translation result.
-            source_execution: Phase 3 source execution result.
-            target_execution: Phase 3 target execution result.
-            validation_report: Phase 4 validation report.
-            discrepancy_report: Phase 5 discrepancy report (None if no discrepancies).
-            diagnosis_ai_result: Phase 7 AI diagnosis result (None if no diagnosis).
-            repair_verification_result: Phase 8 verification result (None if no repair).
-
-        Returns:
-            Complete MigrationAssuranceReport.
-        """
+        """Evaluate migration assurance from Phase 1–8 artifacts."""
         start_time = datetime.now(timezone.utc)
 
         # 1. Build summaries
@@ -129,8 +116,18 @@ class MigrationAssuranceService:
             repair_verification_result
         )
 
-        # 2. Calculate assurance score
-        score = self._scorer.calculate(validation_report)
+        # 2. Calculate assurance score (use post-repair report if repair was verified)
+        report_for_scoring = validation_report
+        if repair_verification_result is not None and repair_verification_result.status == VerificationStatus.VERIFIED:
+            if validation_report_after is not None:
+                report_for_scoring = validation_report_after
+            elif repair_verification_result.validation_id_after:
+                from backend.validation.service import ValidationService
+                fetched = ValidationService.get_validation(repair_verification_result.validation_id_after)
+                if fetched:
+                    report_for_scoring = fetched
+
+        score = self._scorer.calculate(report_for_scoring)
 
         # 3. Determine repair path
         repair_attempted = repair_verification_result is not None

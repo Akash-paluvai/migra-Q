@@ -52,7 +52,7 @@ class TestFormatReport:
         assert "MIG-TEST" in output
         assert "VERIFIED" in output
         assert "100.0" in output
-        assert "75.0%" in output
+        assert "75%" in output
         assert "11 / 11" in output
         assert "✓" in output
 

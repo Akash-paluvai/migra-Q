@@ -16,90 +16,78 @@ from backend.assurance.service import MigrationAssuranceService
 def format_report(report: MigrationAssuranceReport) -> str:
     """Format a MigrationAssuranceReport for terminal output."""
     lines: list[str] = []
+    lines.append("MIGRA-Q MIGRATION ASSURANCE")
+    lines.append("────────────────────────────────────")
     lines.append("")
-    lines.append("=" * 50)
-    lines.append("MIGRA-Q MIGRATION ASSURANCE REPORT")
-    lines.append("=" * 50)
-    lines.append(f"Migration ID:       {report.migration_id}")
-    lines.append(f"Assurance Version:  {report.assurance_version}")
-    lines.append(f"Created At:         {report.created_at}")
-    lines.append(f"Verification Path:  {report.verification_path.value}")
     lines.append("")
-
-    # Score section
-    lines.append("ASSURANCE")
-    lines.append("─" * 40)
-    lines.append(f"Evidence Score        {report.score.evidence_score:>6.1f}")
-    lines.append(f"Evidence Coverage     {report.score.evidence_coverage:>5.1f}%")
-    lines.append(f"Hard Gates            {report.gate_evaluation.passed_count + report.gate_evaluation.not_applicable_count:>2} / {report.gate_evaluation.total_gates}")
-    remaining = 0
-    if report.discrepancy_summary:
-        remaining = report.discrepancy_summary.discrepancy_count
-    if report.verification_summary and report.verification_summary.verification_id:
-        remaining = report.verification_summary.remaining_discrepancy_count
-    lines.append(f"Unresolved Issues     {remaining:>2}")
+    lines.append(f"Migration: {report.migration_id}")
+    if report.translation_summary:
+        lines.append(f"Source: {report.translation_summary.source_dialect.capitalize()}")
+        lines.append(f"Target: {report.translation_summary.target_dialect.capitalize()}")
+    if report.metadata.get("profile"):
+        lines.append(f"Profile: {report.metadata['profile']}")
     lines.append("")
-
-    # Final Status
-    status_icon = "✓" if report.final_status.value == "VERIFIED" else "✗"
-    lines.append("Final Status")
-    lines.append(f"{status_icon} {report.final_status.value}")
     lines.append("")
-    lines.append(f"Decision: {report.decision_reason}")
+    lines.append("Initial validation:")
+    init_val = report.validation_summary.overall_status if report.validation_summary else "N/A"
+    lines.append(f"{init_val}")
     lines.append("")
-
-    # Score components
-    lines.append("SCORE COMPONENTS")
-    lines.append("─" * 40)
-    for c in report.score.components:
-        status_str = c.status.value
-        if c.status.value == "NOT_APPLICABLE":
-            lines.append(f"  {c.name:<30} {status_str}")
-        else:
-            lines.append(f"  {c.name:<30} {c.raw_score:>5.1f}  (weight: {c.effective_weight:.1%})")
     lines.append("")
-
-    # Hard gates
-    lines.append("HARD GATES")
-    lines.append("─" * 40)
-    for g in report.gate_evaluation.gates:
-        icon = "✓" if g.outcome == GateOutcome.PASS else ("─" if g.outcome == GateOutcome.NOT_APPLICABLE else "✗")
-        lines.append(f"  {icon} {g.gate_id} {g.gate_name}")
+    lines.append("Discrepancies:")
+    disc_cnt = report.discrepancy_summary.discrepancy_count if report.discrepancy_summary else 0
+    lines.append(f"{disc_cnt}")
     lines.append("")
-
-    # Audit lineage
-    lines.append("AUDIT LINEAGE")
-    lines.append("─" * 40)
-    lineage = report.lineage
-    if lineage.translation_id:
-        lines.append(f"  Translation ID:       {lineage.translation_id}")
-    if lineage.source_execution_id:
-        lines.append(f"  Source Execution ID:  {lineage.source_execution_id}")
-    if lineage.target_execution_id:
-        lines.append(f"  Target Execution ID:  {lineage.target_execution_id}")
-    if lineage.validation_id:
-        lines.append(f"  Validation ID:        {lineage.validation_id}")
-    if lineage.diagnosis_id:
-        lines.append(f"  Diagnosis ID:         {lineage.diagnosis_id}")
-    if lineage.ai_diagnosis_id:
-        lines.append(f"  AI Diagnosis ID:      {lineage.ai_diagnosis_id}")
-    if lineage.repair_id:
-        lines.append(f"  Repair ID:            {lineage.repair_id}")
-    if lineage.verification_id:
-        lines.append(f"  Verification ID:      {lineage.verification_id}")
-    lines.append(f"  Lineage Complete:     {lineage.is_complete}")
     lines.append("")
-
-    # Limitations
-    if report.limitations:
-        lines.append("LIMITATIONS")
-        lines.append("─" * 40)
-        for lim in report.limitations:
-            lines.append(f"  • {lim}")
-        lines.append("")
-
-    lines.append("=" * 50)
+    lines.append("Affected records:")
+    aff_cnt = report.discrepancy_summary.total_affected_rows if report.discrepancy_summary else 0
+    lines.append(f"{aff_cnt:,}")
+    lines.append("")
+    lines.append("")
+    lines.append("Repair:")
+    rep_stat = report.verification_summary.status if report.verification_summary and report.verification_summary.verification_id else "NOT_ATTEMPTED"
+    lines.append(f"{rep_stat}")
+    lines.append("")
+    lines.append("")
+    lines.append("Before:")
+    bef_cnt = report.verification_summary.affected_rows_before if report.verification_summary and report.verification_summary.verification_id else aff_cnt
+    lines.append(f"{bef_cnt:,}")
+    lines.append("")
+    lines.append("")
+    lines.append("After:")
+    aft_cnt = report.verification_summary.affected_rows_after if report.verification_summary and report.verification_summary.verification_id else 0
+    lines.append(f"{aft_cnt:,}")
+    lines.append("")
+    lines.append("")
+    lines.append("New discrepancies:")
+    new_cnt = report.verification_summary.new_discrepancy_count if report.verification_summary and report.verification_summary.verification_id else 0
+    lines.append(f"{new_cnt}")
+    lines.append("")
+    lines.append("")
+    lines.append("Assurance score:")
+    lines.append(f"{report.score.evidence_score:.1f}")
+    lines.append("")
+    lines.append("")
+    lines.append("Evidence coverage:")
+    lines.append(f"{report.score.evidence_coverage:.0f}%")
+    lines.append("")
+    lines.append("")
+    lines.append("Hard gates:")
+    passed_or_na = report.gate_evaluation.passed_count + report.gate_evaluation.not_applicable_count
+    total_gates = report.gate_evaluation.total_gates
+    gate_ok = "PASS" if report.gate_evaluation.all_passed else "FAIL"
+    lines.append(f"{passed_or_na} / {total_gates} {gate_ok}")
+    lines.append("")
+    lines.append("")
+    lines.append("Verification path:")
+    lines.append(f"{report.verification_path.value}")
+    lines.append("")
+    lines.append("")
+    lines.append("FINAL STATUS:")
+    icon = "✓" if report.final_status.value == "VERIFIED" else "✗"
+    lines.append(f"{icon} {report.final_status.value}")
+    lines.append("")
     return "\n".join(lines)
+
 
 
 def main() -> None:
