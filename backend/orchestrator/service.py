@@ -6,6 +6,7 @@ Orchestrates Phase 1 through Phase 9 into a unified, end-to-end migration pipeli
 from __future__ import annotations
 
 import hashlib
+from typing import Any
 
 from backend.analyzer.service import AnalyzerService
 from backend.assurance.service import MigrationAssuranceService
@@ -34,6 +35,39 @@ class MigrationOrchestrator:
     def __init__(self) -> None:
         self._assurance_service = MigrationAssuranceService()
 
+    def preflight_check(self, source_sql: str, dataset_id: str) -> dict[str, Any]:
+        """Perform preflight validation check for SQL & dataset compatibility."""
+        from backend.datasets.registry import DatasetRegistry
+
+        registry = DatasetRegistry()
+        if not registry.exists(dataset_id):
+            raise ValueError(f"DATASET_NOT_FOUND: Dataset '{dataset_id}' is not registered.")
+
+        # Parse SQL syntax with AnalyzerService
+        src_analysis = AnalyzerService.analyze(source_sql)
+
+        # Check referenced tables against dataset table schemas
+        table_summaries = registry.resolve_schema(dataset_id)
+        available_tables = {t.table_name.lower() for t in table_summaries}
+
+        referenced_tables = [
+            (t.name if hasattr(t, "name") else str(t)).lower()
+            for t in src_analysis.tables
+        ]
+        missing_tables = [t for t in referenced_tables if t not in available_tables]
+
+        if missing_tables:
+            raise ValueError(
+                f"DATASET_SCHEMA_MISMATCH: Referenced table(s) {missing_tables} not found in dataset '{dataset_id}'. Available tables: {list(available_tables)}"
+            )
+
+        return {
+            "sql_parsed": True,
+            "referenced_tables": referenced_tables,
+            "available_tables": list(available_tables),
+            "status": "COMPATIBLE",
+        }
+
     def run(self, request: PipelineRunRequest) -> PipelineRunResult:
         """Run complete migration pipeline dynamically for given request."""
         logger.info(
@@ -44,6 +78,9 @@ class MigrationOrchestrator:
         source_dialect = request.source_dialect.lower()
         target_dialect = request.target_dialect.lower()
         dataset_id = request.dataset_id
+
+        # STEP 0: Preflight Compatibility & Schema Check
+        self.preflight_check(source_sql, dataset_id)
 
         # STEP 1: Phase 1 Analyzer — Analyze Source SQL AST & semantics
         logger.info("[MigrationOrchestrator] Step 1/8: Phase 1 Analyzer")

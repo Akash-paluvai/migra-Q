@@ -44,18 +44,34 @@ def get_flagship_migration() -> MigrationRecord:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@assurance_router.post("/preflight")
+def preflight_check(req: MigrationRunRequest) -> dict[str, Any]:
+    """Preflight validation check verifying SQL syntax and dataset table compatibility."""
+    try:
+        return _orchestrator.preflight_check(req.source_sql, req.dataset_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Preflight error: {exc}")
+
+
 @assurance_router.post("/run")
 def run_migration(req: MigrationRunRequest) -> MigrationRecord:
     """Trigger a new migration workflow run dynamically via MigrationOrchestrator."""
-    result = _orchestrator.run(
-        PipelineRunRequest(
-            source_sql=req.source_sql,
-            source_dialect=req.source_dialect,
-            target_dialect=req.target_dialect,
-            dataset_id=req.dataset_id,
+    try:
+        result = _orchestrator.run(
+            PipelineRunRequest(
+                source_sql=req.source_sql,
+                source_dialect=req.source_dialect,
+                target_dialect=req.target_dialect,
+                dataset_id=req.dataset_id,
+            )
         )
-    )
-    return result.migration_record
+        return result.migration_record
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pipeline execution error: {exc}")
 
 
 @assurance_router.get("/{migration_id}")
