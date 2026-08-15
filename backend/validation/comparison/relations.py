@@ -88,9 +88,54 @@ def compare_relations(
     rows_matched = 0
     duplicate_key_warnings = 0
 
-    # 3. Compare value differences for common keys
-    rows_matched = 0
-    duplicate_key_warnings = 0
+    # Fast path: Vectorized comparison if unique 1:1 keys and matching index lengths
+    if (
+        not missing_in_target
+        and not extra_in_target
+        and len(df_src) == len(df_tgt)
+        and df_src["_join_key"].is_unique
+        and df_tgt["_join_key"].is_unique
+    ):
+        df_src_sorted = df_src.sort_values("_join_key").reset_index(drop=True)
+        df_tgt_sorted = df_tgt.sort_values("_join_key").reset_index(drop=True)
+
+        for col in common_cols:
+            s_series = df_src_sorted[col]
+            t_series = df_tgt_sorted[col]
+
+            mismatches = s_series != t_series
+            diff_indices = df_src_sorted.index[mismatches]
+            diff_count = len(diff_indices)
+
+            if diff_count > 0:
+                mismatch_count += diff_count
+                for idx in diff_indices[:max_evidence_items]:
+                    if len(evidence_items) < max_evidence_items:
+                        key_dict = {col_k: str(df_src_sorted.loc[idx, col_k]) for col_k in comparison_keys}
+                        evidence_items.append(
+                            EvidenceItem(
+                                type=EvidenceType.VALUE_MISMATCH,
+                                key=key_dict,
+                                column=col,
+                                source_value=str(df_src_sorted.loc[idx, col]),
+                                target_value=str(df_tgt_sorted.loc[idx, col]),
+                                category="VALUE_MISMATCH",
+                                detail=f"Value mismatch in column '{col}': '{df_src_sorted.loc[idx, col]}' vs '{df_tgt_sorted.loc[idx, col]}'",
+                            )
+                        )
+            rows_matched = len(df_src_sorted) - diff_count
+
+        return {
+            "mismatch_count": mismatch_count,
+            "rows_compared": len(df_src),
+            "rows_matched": max(0, rows_matched),
+            "missing_source_keys": 0,
+            "extra_target_keys": 0,
+            "duplicate_key_warnings": 0,
+            "evidence": evidence_items,
+            "evidence_truncated": mismatch_count > max_evidence_items,
+            "score": round(max(0.0, (len(df_src) - mismatch_count) / max(1, len(df_src))), 4),
+        }
 
     src_grouped = df_src.groupby("_join_key")
     tgt_grouped = df_tgt.groupby("_join_key")

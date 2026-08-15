@@ -61,11 +61,11 @@ def run_flagship_demo():
     print("MIGRA-Q FLAGSHIP END-TO-END DEMO & FULL AUDIT LINEAGE PROOF")
     print("=" * 85)
 
-    # 0. Ensure Synthetic Lab Dataset (customer_risk) with BOUNDARY_REFUND_001 scenario exists
     dataset_dir = PROJECT_ROOT / "datasets" / "generated" / "customer_risk"
-    print(f"\n[STEP 0] Generating synthetic dataset 'customer_risk' (BOUNDARY_REFUND_001) at:\n  {dataset_dir}")
+    profile_name = "test" if "--test-profile" in sys.argv else "dev"
+    print(f"\n[STEP 0] Generating synthetic dataset 'customer_risk' (BOUNDARY_REFUND_001, profile={profile_name}) at:\n  {dataset_dir}")
     scen = get_scenario("BOUNDARY_REFUND_001")
-    dfs = scen.generate(seed=42, profile_name="test")
+    dfs = scen.generate(seed=42, profile_name=profile_name)
     file_names, checksums = export_to_parquet(dfs, dataset_dir)
     row_counts = {name: len(df) for name, df in dfs.items()}
 
@@ -74,7 +74,7 @@ def run_flagship_demo():
         generator_version=GENERATOR_VERSION,
         schema_version=SCHEMA_VERSION,
         seed=42,
-        profile="test",
+        profile=profile_name,
         generation_timestamp=datetime.now(timezone.utc).isoformat(),
         row_counts=row_counts,
         table_schemas=ALL_SCHEMAS,

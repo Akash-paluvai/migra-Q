@@ -10,6 +10,8 @@ def normalize_expression(expr: str | None) -> str:
         return ""
     # Strip leading/trailing spaces, collapse inner whitespace
     s = re.sub(r"\s+", " ", expr.strip())
+    # Strip trailing decimals for whole floats (e.g. 500.00 or 500.0 -> 500)
+    s = re.sub(r"(\d+)\.0+(?!\d)", r"\1", s)
     # Standardize uppercase for standard SQL keywords
     s = re.sub(
         r"\b(select|from|where|join|left|right|inner|outer|on|group|by|having|order|case|when|then|else|end|is|null|not|and|or|sum|count|avg|min|max|distinct|cast|as)\b",

@@ -58,6 +58,7 @@ class CaseExpression(BaseModel):
     id: str
     whens: list[CaseWhen]
     else_result: str | None = None
+    target_column: str | None = None
 
 
 class BusinessRule(BaseModel):

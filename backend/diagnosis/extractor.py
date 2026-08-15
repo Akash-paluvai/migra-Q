@@ -91,44 +91,44 @@ class SignalExtractor:
         signals: list[RawDiscrepancySignal],
     ) -> None:
         """Extract structural AST signals directly from source & target SQLAnalysis."""
-        # Check Business Rules
-        for i, sr in enumerate(s.business_rules):
-            if i < len(t.business_rules):
-                tr = t.business_rules[i]
-                if sr.condition != tr.condition or sr.then != tr.then or sr.else_val != tr.else_val:
-                    src_expr = _format_condition(sr.condition)
-                    tgt_expr = _format_condition(tr.condition)
-                    target_col = None
-                    if i < len(s.case_expressions):
-                        target_col = s.case_expressions[i].id
-                    if not target_col:
-                        # Fallback to column in SELECT with CASE expression
-                        for col_ref in s.columns:
-                            if col_ref.name and col_ref.name in (
-                                "risk_class",
-                                "risk_category",
-                                "status_class",
-                            ):
-                                target_col = col_ref.name
-                                break
+        # Check Business Rules & Case Expressions
+        for i, sc in enumerate(s.case_expressions):
+            if i < len(t.case_expressions):
+                tc = t.case_expressions[i]
+                for j, sw in enumerate(sc.whens):
+                    if j < len(tc.whens):
+                        tw = tc.whens[j]
+                        if sw.condition != tw.condition:
+                            target_col = sc.target_column or tc.target_column
+                            if not target_col:
+                                for col_ref in s.columns:
+                                    col_name = (col_ref.alias or col_ref.name or "").lower()
+                                    if col_name and ("risk" in col_name or "class" in col_name or col_name in ("risk_class", "risk_category", "status_class")):
+                                        target_col = col_ref.alias or col_ref.name
+                                        break
+                            if not target_col:
+                                for col_ref in reversed(s.columns):
+                                    col_name = (col_ref.alias or col_ref.name or "").lower()
+                                    if col_name and col_name not in ("customer_id", "customer_segment", "account_id", "amount", "status"):
+                                        target_col = col_ref.alias or col_ref.name
+                                        break
 
-                    signals.append(
-                        RawDiscrepancySignal(
-                            source_validator="AST_ANALYZER",
-                            signal_type="BUSINESS_RULE_DIFF",
-                            analysis_path=f"columns[{target_col}]"
-                            if target_col
-                            else f"business_rules[{i}].condition",
-                            source_expression=src_expr,
-                            target_expression=tgt_expr,
-                            payload={
-                                "rule_id": sr.id,
-                                "column": target_col,
-                                "source_then": sr.then,
-                                "target_then": tr.then,
-                            },
-                        )
-                    )
+                            is_op_inc = (">" in sw.condition and ">=" in tw.condition) or (">=" in sw.condition and ">" in tw.condition) or ("<" in sw.condition and "<=" in tw.condition) or ("<=" in sw.condition and "<" in tw.condition)
+                            signals.append(
+                                RawDiscrepancySignal(
+                                    source_validator="AST_ANALYZER",
+                                    signal_type="OPERATOR_INCLUSION" if is_op_inc else "CASE_CONDITION_DIFF",
+                                    analysis_path=f"columns[{target_col}]" if target_col else f"case_expressions[{i}].whens[{j}]",
+                                    source_expression=sw.condition,
+                                    target_expression=tw.condition,
+                                    payload={
+                                        "case_id": sc.id,
+                                        "column": target_col,
+                                        "source_result": sw.result,
+                                        "target_result": tw.result,
+                                    },
+                                )
+                            )
 
         # Check Filters
         for i, sf in enumerate(s.filters):

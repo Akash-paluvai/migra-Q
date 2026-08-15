@@ -202,6 +202,16 @@ def extract_case_expressions(
     rules: list[BusinessRule] = []
 
     for case_node in tree.find_all(exp.Case):
+        target_col = None
+        curr = case_node.parent
+        while curr is not None:
+            if isinstance(curr, exp.Alias):
+                target_col = curr.alias or curr.name
+                break
+            if isinstance(curr, (exp.Select, exp.From, exp.Where)):
+                break
+            curr = curr.parent
+
         whens: list[CaseWhen] = []
         for if_node in case_node.args.get("ifs", []):
             cond = if_node.this.sql() if if_node.this else ""
@@ -213,7 +223,14 @@ def extract_case_expressions(
         else_str = else_val.sql() if else_val else None
 
         case_id = _next_id("CASE")
-        cases.append(CaseExpression(id=case_id, whens=whens, else_result=else_str))
+        cases.append(
+            CaseExpression(
+                id=case_id,
+                whens=whens,
+                else_result=else_str,
+                target_column=target_col,
+            )
+        )
 
         for i, w in enumerate(whens):
             rule_id = _next_id("RULE")
