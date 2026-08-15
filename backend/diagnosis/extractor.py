@@ -1,8 +1,26 @@
 """Signal Extractor for extracting raw discrepancy signals from Phase 4 artifacts."""
 
+from typing import Any
+
 from backend.analyzer.models import SQLAnalysis
 from backend.diagnosis.signals import RawDiscrepancySignal
 from backend.validation.models import ValidationCheckStatus, ValidationReport
+
+
+def _format_condition(cond: Any) -> str:
+    if isinstance(cond, str):
+        return cond
+    if isinstance(cond, dict):
+        if "condition" in cond and isinstance(cond["condition"], (dict, str)):
+            return _format_condition(cond["condition"])
+        op = cond.get("operator", "")
+        left = cond.get("left", "")
+        right = cond.get("right", "")
+        if op and left and right:
+            return f"{left} {op} {right}"
+        if "expression" in cond:
+            return str(cond["expression"])
+    return str(cond)
 
 
 class SignalExtractor:
@@ -32,10 +50,15 @@ class SignalExtractor:
                 tgt_val = ev_dict.get("target_value")
                 col = ev_dict.get("column")
 
+                src_expr = _format_condition(src_val) if src_val is not None else None
+                tgt_expr = _format_condition(tgt_val) if tgt_val is not None else None
+
                 # Infer analysis path
                 analysis_path = ""
                 if col:
                     analysis_path = f"columns[{col}]"
+                elif cat == "CASE_RULE_CHANGED":
+                    analysis_path = "business_rules[0].condition"
                 elif cat:
                     analysis_path = f"category[{cat}]"
 
@@ -44,14 +67,18 @@ class SignalExtractor:
                         source_validator=validator_name,
                         signal_type=str(ev_type),
                         analysis_path=analysis_path,
-                        source_expression=str(src_val) if src_val is not None else None,
-                        target_expression=str(tgt_val) if tgt_val is not None else None,
+                        source_expression=src_expr,
+                        target_expression=tgt_expr,
                         payload=ev_dict,
                     )
                 )
 
         # If business rule differences exist in metadata/AST analysis, extract AST signals
-        if source_analysis and target_analysis:
+        if (
+            source_analysis
+            and target_analysis
+            and not any(s.source_validator == "BusinessRuleValidator" for s in signals)
+        ):
             SignalExtractor._extract_ast_signals(source_analysis, target_analysis, signals)
 
         return signals
@@ -67,18 +94,37 @@ class SignalExtractor:
         for i, sr in enumerate(s.business_rules):
             if i < len(t.business_rules):
                 tr = t.business_rules[i]
-                if sr.condition != tr.condition or sr.outputs != tr.outputs:
+                if sr.condition != tr.condition or sr.then != tr.then or sr.else_val != tr.else_val:
+                    src_expr = _format_condition(sr.condition)
+                    tgt_expr = _format_condition(tr.condition)
+                    target_col = None
+                    if i < len(s.case_expressions):
+                        target_col = s.case_expressions[i].id
+                    if not target_col:
+                        # Fallback to column in SELECT with CASE expression
+                        for col_ref in s.columns:
+                            if col_ref.name and col_ref.name in (
+                                "risk_class",
+                                "risk_category",
+                                "status_class",
+                            ):
+                                target_col = col_ref.name
+                                break
+
                     signals.append(
                         RawDiscrepancySignal(
                             source_validator="AST_ANALYZER",
                             signal_type="BUSINESS_RULE_DIFF",
-                            analysis_path=f"business_rules[{i}].condition",
-                            source_expression=sr.condition,
-                            target_expression=tr.condition,
+                            analysis_path=f"columns[{target_col}]"
+                            if target_col
+                            else f"business_rules[{i}].condition",
+                            source_expression=src_expr,
+                            target_expression=tgt_expr,
                             payload={
                                 "rule_id": sr.id,
-                                "source_outputs": sr.outputs,
-                                "target_outputs": tr.outputs,
+                                "column": target_col,
+                                "source_then": sr.then,
+                                "target_then": tr.then,
                             },
                         )
                     )

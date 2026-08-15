@@ -102,6 +102,7 @@ class DiscrepancyRecord(BaseModel):
     target_expression: str | None = None
     affected_output_columns: list[str] = Field(default_factory=list)
     affected_row_count: int = 0
+    total_output_rows: int = 0
     affected_percentage: float = 0.0
     evidence: list[TypedEvidence] = Field(default_factory=list)
     validator_checks: list[str] = Field(default_factory=list)

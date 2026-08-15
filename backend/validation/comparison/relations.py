@@ -98,35 +98,42 @@ def compare_relations(
         if len(src_rows) > 1 or len(tgt_rows) > 1:
             duplicate_key_warnings += 1
 
-        # Compare top row per key
-        r_src = src_rows.iloc[0]
-        r_tgt = tgt_rows.iloc[0]
-
-        row_has_mismatch = False
-        key_dict = {col: str(r_src[col]) for col in comparison_keys}
-
-        for col in common_cols:
-            val_s = r_src[col]
-            val_t = r_tgt[col]
-
-            if not compare_values(val_s, val_t, abs_tol=abs_tol, rel_tol=rel_tol):
-                row_has_mismatch = True
+        pair_count = max(len(src_rows), len(tgt_rows))
+        for i in range(pair_count):
+            if i >= len(src_rows):
                 mismatch_count += 1
-                if len(evidence_items) < max_evidence_items:
-                    evidence_items.append(
-                        EvidenceItem(
-                            type=EvidenceType.VALUE_MISMATCH,
-                            key=key_dict,
-                            column=col,
-                            source_value=str(val_s),
-                            target_value=str(val_t),
-                            category="VALUE_MISMATCH",
-                            detail=f"Column '{col}' mismatch for key {key_dict}.",
-                        )
-                    )
+                continue
+            if i >= len(tgt_rows):
+                mismatch_count += 1
+                continue
 
-        if not row_has_mismatch:
-            rows_matched += 1
+            r_src = src_rows.iloc[i]
+            r_tgt = tgt_rows.iloc[i]
+            row_has_mismatch = False
+            key_dict = {col: str(r_src[col]) for col in comparison_keys}
+
+            for col in common_cols:
+                val_s = r_src[col]
+                val_t = r_tgt[col]
+
+                if not compare_values(val_s, val_t, abs_tol=abs_tol, rel_tol=rel_tol):
+                    row_has_mismatch = True
+                    mismatch_count += 1
+                    if len(evidence_items) < max_evidence_items:
+                        evidence_items.append(
+                            EvidenceItem(
+                                type=EvidenceType.VALUE_MISMATCH,
+                                key=key_dict,
+                                column=col,
+                                source_value=str(val_s),
+                                target_value=str(val_t),
+                                category="VALUE_MISMATCH",
+                                detail=f"Column '{col}' mismatch for key {key_dict}.",
+                            )
+                        )
+
+            if not row_has_mismatch:
+                rows_matched += 1
 
     total_rows = len(df_src)
     score = (rows_matched / total_rows) if total_rows > 0 else (1.0 if len(df_tgt) == 0 else 0.0)

@@ -41,6 +41,13 @@ def format_discrepancy_summary(report_dict: dict[str, Any]) -> str:
         if "." in method_val:
             method_val = method_val.split(".")[-1]
 
+        total_rows = d.get("total_output_rows", 0) or report_dict.get("summary_statistics", {}).get(
+            "total_output_rows", 0
+        )
+        pct = d.get("affected_percentage", 0.0)
+        aff_cols = d.get("affected_output_columns", [])
+        aff_cols_str = ", ".join(aff_cols) if aff_cols else "None"
+
         lines.extend(
             [
                 f"{disc_id}",
@@ -52,7 +59,11 @@ def format_discrepancy_summary(report_dict: dict[str, Any]) -> str:
                 f"Source expression:   {src_expr}",
                 f"Target expression:   {tgt_expr}",
                 f"Analysis path:       {d.get('analysis_path')}",
-                f"Impact:              {affected_rows} affected rows",
+                "Impact:",
+                f"  Affected rows:       {affected_rows:,}",
+                f"  Total output rows:   {total_rows:,}",
+                f"  Affected percentage: {pct:.2f}%",
+                f"  Affected columns:    {aff_cols_str}",
                 "",
                 "Evidence:",
             ]

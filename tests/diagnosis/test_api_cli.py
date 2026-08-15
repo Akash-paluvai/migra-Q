@@ -36,7 +36,7 @@ def test_format_discrepancy_summary_formatting():
     assert "D-001" in fmt
     assert "BOUNDARY_CONDITION" in fmt
     assert "refund_amount > 500" in fmt
-    assert "229 affected rows" in fmt
+    assert "Affected rows:       229" in fmt
 
 
 def test_api_diagnose_not_found():

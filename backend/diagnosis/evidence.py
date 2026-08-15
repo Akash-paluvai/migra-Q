@@ -47,18 +47,31 @@ class EvidenceConsolidator:
             src_expr = sig.source_expression
             tgt_expr = sig.target_expression
 
-            # If execution signal lacks expressions or matching path, link to AST signal
+            # Link execution signals to AST signals via path or column
             if ast_signals and sig.source_validator in ("RowValidator", "EdgeCaseValidator"):
+                row_col = sig.payload.get("column")
                 for ast_s in ast_signals:
-                    if (
+                    ast_col = ast_s.payload.get("column")
+                    ast_expr = (
+                        (ast_s.source_expression or "") + " " + (ast_s.target_expression or "")
+                    )
+
+                    is_path_match = (
                         not path
                         or path == ast_s.analysis_path
                         or path.startswith(ast_s.analysis_path)
                         or ast_s.analysis_path.startswith(path)
-                    ):
+                    )
+                    is_col_match = bool(row_col and ast_col and row_col == ast_col)
+                    is_expr_match = bool(row_col and row_col in ast_expr)
+
+                    if is_path_match or is_col_match or is_expr_match:
                         src_expr = src_expr or ast_s.source_expression
                         tgt_expr = tgt_expr or ast_s.target_expression
                         path = ast_s.analysis_path
+                        sig.source_expression = src_expr
+                        sig.target_expression = tgt_expr
+                        sig.analysis_path = path
                         break
 
             candidate = self.classifier.classify_signal(sig, signals)
@@ -188,6 +201,10 @@ class EvidenceConsolidator:
                 )
             classification_reason = " ".join(reason_parts)
 
+            aff_cols = sorted(list(set(ev.column for ev in typed_evidences if ev.column)))
+            if not aff_cols and candidate.payload and candidate.payload.get("column"):
+                aff_cols = [str(candidate.payload.get("column"))]
+
             discrepancies.append(
                 DiscrepancyRecord(
                     discrepancy_id=f"D-{disc_index:03d}",
@@ -201,8 +218,9 @@ class EvidenceConsolidator:
                     target_location=candidate.analysis_path,
                     source_expression=candidate.source_expression,
                     target_expression=candidate.target_expression,
-                    affected_output_columns=[],
+                    affected_output_columns=aff_cols,
                     affected_row_count=affected_rows,
+                    total_output_rows=total_output_rows,
                     affected_percentage=affected_pct,
                     evidence=typed_evidences,
                     validator_checks=validator_checks,
