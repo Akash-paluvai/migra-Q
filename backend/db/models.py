@@ -1,4 +1,4 @@
-"""SQLAlchemy database models for execution audit logging."""
+"""SQLAlchemy database models for execution and validation audit logging."""
 
 from datetime import datetime, timezone
 
@@ -29,3 +29,37 @@ class ExecutionRecord(Base):
     error_code = Column(String(128), nullable=True)
     error_message = Column(Text, nullable=True)
     metadata_json = Column(Text, nullable=True)
+
+
+class ValidationRecord(Base):
+    """PostgreSQL table storing validation run audit records."""
+
+    __tablename__ = "validations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    validation_id = Column(String(64), unique=True, index=True, nullable=False)
+    source_execution_id = Column(String(64), index=True, nullable=False)
+    target_execution_id = Column(String(64), index=True, nullable=False)
+    dataset_id = Column(String(128), index=True, nullable=False)
+    status = Column(String(32), nullable=False)
+    validator_version = Column(String(32), nullable=False, default="0.1.0")
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    summary_json = Column(Text, nullable=True)
+
+
+class ValidationResultRecord(Base):
+    """PostgreSQL table storing individual validation check results."""
+
+    __tablename__ = "validation_results"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    validation_id = Column(String(64), index=True, nullable=False)
+    check_name = Column(String(128), nullable=False)
+    status = Column(String(32), nullable=False)
+    severity = Column(String(32), nullable=False)
+    score = Column(Float, nullable=False, default=0.0)
+    mismatch_count = Column(Integer, nullable=False, default=0)
+    summary = Column(Text, nullable=True)
+    evidence_json = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    duration_ms = Column(Float, nullable=False, default=0.0)

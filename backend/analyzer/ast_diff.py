@@ -182,6 +182,16 @@ def _diff_aggregations(s: SQLAnalysis, t: SQLAnalysis, diffs: list[DiffItem]) ->
 
 
 def _diff_business_rules(s: SQLAnalysis, t: SQLAnalysis, diffs: list[DiffItem]) -> None:
+    if len(s.business_rules) != len(t.business_rules):
+        diffs.append(
+            DiffItem(
+                category=DiffCategory.CASE_RULE_CHANGED,
+                source_value=len(s.business_rules),
+                target_value=len(t.business_rules),
+                detail=f"Rule count changed ({len(s.business_rules)} → {len(t.business_rules)})",
+            )
+        )
+
     for i, sr in enumerate(s.business_rules):
         if i < len(t.business_rules):
             tr = t.business_rules[i]

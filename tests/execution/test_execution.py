@@ -17,6 +17,7 @@ client = TestClient(app)
 @pytest.fixture
 def dev_dataset_id():
     import argparse
+
     from backend.lab.cli import cmd_generate
 
     out_dir = "datasets/generated/test_exec"

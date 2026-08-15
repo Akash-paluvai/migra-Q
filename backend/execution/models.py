@@ -45,7 +45,7 @@ class ExecutionResult(BaseModel):
     execution_mode: ExecutionMode = ExecutionMode.SOURCE
     status: ExecutionStatus
     timestamp: str
-    duration_ms: float
+    duration_ms: float = 0.0
     row_count: int
     columns: list[ColumnSchema] = Field(default_factory=list)
     sample_data: list[dict[str, Any]] | None = None

@@ -57,3 +57,11 @@ def analyze(sql: str, dialect: str = "teradata") -> SQLAnalysis:
         null_sensitive_expressions=null_sensitive,
         warnings=warnings,
     )
+
+
+class AnalyzerService:
+    """Class wrapper for AnalyzerService."""
+
+    @staticmethod
+    def analyze(sql: str, dialect: str = "teradata") -> SQLAnalysis:
+        return analyze(sql, dialect)
