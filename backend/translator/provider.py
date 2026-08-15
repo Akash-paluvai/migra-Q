@@ -22,6 +22,19 @@ class RawProviderResponse:
     duration_ms: float = 0.0
 
 
+def _clean_json_response(raw_text: str) -> str:
+    """Strip markdown codeblock wrappers if LLM returned ```json ... ```."""
+    text = raw_text.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return text
+
+
 class LLMProvider(ABC):
     """Abstract interface for LLM generative translation providers."""
 
@@ -169,16 +182,18 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;""",
 
 
 class OpenAIProvider(LLMProvider):
-    """Production provider calling OpenAI API via official OpenAI SDK."""
+    """Production / OpenRouter provider calling OpenAI-compatible HTTP API via urllib."""
 
     def __init__(
         self,
         api_key: str | None = None,
         model: str | None = None,
+        base_url: str | None = None,
         timeout: float | None = None,
     ):
         self.api_key = api_key or settings.LLM_API_KEY
         self.model = model or settings.LLM_MODEL
+        self.base_url = base_url or settings.LLM_BASE_URL or "https://openrouter.ai/api/v1"
         self.timeout = timeout or settings.LLM_TIMEOUT_SECONDS
 
         if not self.api_key:
@@ -190,55 +205,66 @@ class OpenAIProvider(LLMProvider):
                 "OpenAI model name must be provided or configured in settings.LLM_MODEL."
             )
 
-        try:
-            import openai
-
-            self.client = openai.OpenAI(api_key=self.api_key, timeout=self.timeout)
-        except ImportError:
-            raise ImportError("openai package is not installed. Install via `pip install openai`.")
-
     def generate_translation(
         self,
         context: TranslationContext,
         system_prompt: str,
         user_prompt: str,
     ) -> RawProviderResponse:
-        """Call OpenAI chat completions endpoint requesting JSON object output."""
-        import openai
+        """Call OpenRouter / OpenAI chat completions API via urllib."""
+        import json
+        import urllib.error
+        import urllib.request
 
         start_time = time.perf_counter()
 
+        base_endpoint = self.base_url.rstrip("/")
+        url = f"{base_endpoint}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:8000",
+            "X-Title": "MIGRA-Q",
+        }
+        body = {
+            "model": self.model,
+            "temperature": settings.LLM_TEMPERATURE,
+            "max_tokens": settings.LLM_MAX_OUTPUT_TOKENS,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(body).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                temperature=settings.LLM_TEMPERATURE,
-                max_tokens=settings.LLM_MAX_OUTPUT_TOKENS,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-            )
-        except openai.AuthenticationError as e:
-            raise PermissionError(f"LLM_AUTH_ERROR: {e}") from e
-        except openai.RateLimitError as e:
-            raise RuntimeError(f"LLM_RATE_LIMIT: {e}") from e
-        except openai.APITimeoutError as e:
-            raise TimeoutError(f"LLM_TIMEOUT: {e}") from e
-        except openai.APIError as e:
-            raise RuntimeError(f"LLM_PROVIDER_ERROR: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"LLM_PROVIDER_ERROR: {e}") from e
+            with urllib.request.urlopen(req, timeout=self.timeout) as res:
+                resp_data = json.loads(res.read().decode("utf-8"))
+                raw_text = resp_data["choices"][0]["message"]["content"] or ""
+                raw_json = _clean_json_response(raw_text)
+                usage_data = resp_data.get("usage", {})
+                input_tokens = usage_data.get("prompt_tokens")
+                output_tokens = usage_data.get("completion_tokens")
+                total_tokens = usage_data.get("total_tokens")
+        except urllib.error.HTTPError as http_err:
+            if http_err.code in (401, 403):
+                raise PermissionError(f"LLM_AUTH_ERROR: HTTP {http_err.code} Authentication Failed") from http_err
+            elif http_err.code == 429:
+                raise RuntimeError("LLM_RATE_LIMIT: HTTP 429 Rate Limit Exceeded") from http_err
+            else:
+                raise RuntimeError(f"LLM_PROVIDER_ERROR: HTTP {http_err.code}") from http_err
+        except TimeoutError as time_err:
+            raise TimeoutError(f"LLM_TIMEOUT: {time_err}") from time_err
+        except Exception as exc:
+            raise RuntimeError(f"LLM_HTTP_ERROR: {exc}") from exc
 
         duration_ms = (time.perf_counter() - start_time) * 1000.0
-        choice = response.choices[0]
-        raw_json = choice.message.content or ""
-
-        usage = response.usage
-        input_tokens = usage.prompt_tokens if usage else None
-        output_tokens = usage.completion_tokens if usage else None
-        total_tokens = usage.total_tokens if usage else None
-
         return RawProviderResponse(
             raw_json=raw_json,
             input_tokens=input_tokens,
@@ -250,16 +276,19 @@ class OpenAIProvider(LLMProvider):
 
 def get_llm_provider(
     provider_name: str | None = None,
-    mock_mode: str = "MOCK_GOOD",
+    mock_mode: str | None = None,
 ) -> LLMProvider:
     """Factory function returning the configured LLMProvider instance."""
+    if mock_mode and mock_mode.startswith("MOCK_"):
+        return MockLLMProvider(mode=mock_mode)
+
     p_name = (provider_name or settings.LLM_PROVIDER).lower()
 
     if p_name == "mock":
-        return MockLLMProvider(mode=mock_mode)
+        return MockLLMProvider(mode=mock_mode or "MOCK_GOOD")
 
-    if p_name == "openai":
+    if p_name in ("openai", "openrouter"):
         settings.validate_llm_config()
         return OpenAIProvider()
 
-    raise ValueError(f"Unsupported LLM provider: '{p_name}'. Allowed: 'openai', 'mock'.")
+    raise ValueError(f"Unsupported LLM provider: '{p_name}'. Allowed: 'openai', 'openrouter', 'mock'.")

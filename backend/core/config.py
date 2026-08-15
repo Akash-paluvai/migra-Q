@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "mock"
     LLM_MODEL: str = ""
     LLM_API_KEY: str = ""
+    LLM_BASE_URL: str = ""
     LLM_TIMEOUT_SECONDS: float = 60.0
     LLM_MAX_RETRIES: int = 2
     LLM_TEMPERATURE: float = 0.0
@@ -49,11 +50,11 @@ class Settings(BaseSettings):
 
     def validate_llm_config(self) -> None:
         """Validate LLM configuration parameters."""
-        if self.LLM_PROVIDER == "openai":
+        if self.LLM_PROVIDER in ("openai", "openrouter"):
             if not self.LLM_MODEL:
-                raise ValueError("LLM_MODEL must be configured when LLM_PROVIDER is 'openai'.")
+                raise ValueError(f"LLM_MODEL must be configured when LLM_PROVIDER is '{self.LLM_PROVIDER}'.")
             if not self.LLM_API_KEY:
-                raise ValueError("LLM_API_KEY must be configured when LLM_PROVIDER is 'openai'.")
+                raise ValueError(f"LLM_API_KEY must be configured when LLM_PROVIDER is '{self.LLM_PROVIDER}'.")
 
 
 settings = Settings()

@@ -3,7 +3,6 @@
 import pytest
 
 from backend.core.config import Settings
-from backend.db.database import check_database_health
 
 
 def test_test_mode_can_use_memory_persistence():
@@ -20,17 +19,12 @@ def test_non_test_mode_rejects_memory_persistence():
         s.validate_persistence_policy()
 
 
-def test_development_health_check_reports_degraded_when_postgres_unavailable():
+def test_development_health_check_reports_degraded_when_postgres_unavailable(monkeypatch):
     """Health check returns False (degraded) when PostgreSQL connection fails in dev environment."""
-    from backend.core.config import settings
+    from backend.db import database
 
-    old_env = settings.APP_ENV
-    old_mode = settings.PERSISTENCE_MODE
-    try:
-        settings.APP_ENV = "development"
-        settings.PERSISTENCE_MODE = "postgres"
-        # Since PostgreSQL container is not running locally, health check should return False
-        assert check_database_health() is False
-    finally:
-        settings.APP_ENV = old_env
-        settings.PERSISTENCE_MODE = old_mode
+    def mock_failed_connect():
+        raise RuntimeError("Database connection unreachable")
+
+    monkeypatch.setattr(database.engine, "connect", mock_failed_connect)
+    assert database.check_database_health() is False

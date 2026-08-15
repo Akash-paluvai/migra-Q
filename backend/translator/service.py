@@ -46,7 +46,7 @@ class TranslationService:
         request: TranslationRequest,
         provider: LLMProvider | None = None,
         db_session: Session | None = None,
-        mock_mode: str = "MOCK_GOOD",
+        mock_mode: str | None = None,
     ) -> TranslationResult:
         """Execute translation request and return structured TranslationResult."""
         start_time = time.perf_counter()
