@@ -62,6 +62,12 @@ class MigrationAssuranceRepository:
             return self._reports.get(migration_id)
         return self._get_report_pg(migration_id)
 
+    def get_all_migrations(self) -> list[MigrationRecord]:
+        """Retrieve all migration records."""
+        if settings.PERSISTENCE_MODE == "memory":
+            return list(self._migrations.values())
+        return self._get_all_migrations_pg()
+
     @classmethod
     def reset_memory_store(cls) -> None:
         """Clear all in-memory data (test utility)."""
@@ -227,3 +233,35 @@ class MigrationAssuranceRepository:
         except Exception as exc:
             logger.error("Failed to retrieve assurance report: %s", exc)
             return None
+
+    def _get_all_migrations_pg(self) -> list[MigrationRecord]:
+        try:
+            from backend.db.database import get_db_session
+            from backend.db.models import MigrationRecordModel
+
+            session = get_db_session()
+            try:
+                rows = session.query(MigrationRecordModel).order_by(MigrationRecordModel.id.desc()).all()
+                return [
+                    MigrationRecord(
+                        migration_id=row.migration_id,
+                        source_dialect=row.source_dialect,
+                        target_dialect=row.target_dialect,
+                        source_sql_hash=row.source_sql_hash,
+                        dataset_id=row.dataset_id,
+                        dataset_hash=row.dataset_hash,
+                        current_state=row.current_state,
+                        final_status=row.final_status,
+                        assurance_score=row.assurance_score,
+                        evidence_coverage=row.evidence_coverage,
+                        assurance_version=row.assurance_version,
+                        created_at=row.created_at.isoformat() if row.created_at else "",
+                        updated_at=row.updated_at.isoformat() if row.updated_at else "",
+                    )
+                    for row in rows
+                ]
+            finally:
+                session.close()
+        except Exception as exc:
+            logger.error("Failed to retrieve all migrations: %s", exc)
+            return []

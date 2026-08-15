@@ -263,9 +263,24 @@ class MigrationAssuranceService:
         """Retrieve the assurance report for a migration."""
         return self._repository.get_assurance_report(migration_id)
 
-    def get_events(self, migration_id: str) -> list:
-        """Retrieve state events for a migration."""
-        return self._repository.get_events(migration_id)
+    def list_migrations(self) -> list[MigrationRecord]:
+        """Retrieve all migration records."""
+        return self._repository.get_all_migrations()
+
+    def get_flagship_migration(self) -> MigrationRecord:
+        """Retrieve the latest persisted flagship migration, running once if none exists."""
+        migrations = self._repository.get_all_migrations()
+        if migrations:
+            return migrations[0]
+
+        # Seed flagship migration if store is currently empty
+        from scripts.run_flagship_demo import run_flagship_demo
+        run_flagship_demo()
+        all_now = self._repository.get_all_migrations()
+        if all_now:
+            return all_now[0]
+
+        raise RuntimeError("Failed to initialize flagship migration.")
 
     # -----------------------------------------------------------------------
     # Internal helpers

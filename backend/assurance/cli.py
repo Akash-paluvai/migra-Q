@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from backend.assurance.models import GateOutcome, MigrationAssuranceReport
+from backend.assurance.models import MigrationAssuranceReport
 from backend.assurance.service import MigrationAssuranceService
 
 
