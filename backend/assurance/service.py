@@ -64,6 +64,7 @@ class MigrationAssuranceService:
     def create_migration(
         self,
         *,
+        migration_id: str | None = None,
         source_dialect: str,
         target_dialect: str,
         source_sql_hash: str,
@@ -71,9 +72,9 @@ class MigrationAssuranceService:
         dataset_hash: str,
     ) -> MigrationRecord:
         """Create a new migration record in CREATED state."""
-        migration_id = f"MIG-{uuid.uuid4().hex[:12].upper()}"
+        mid = migration_id or f"MIG-{uuid.uuid4().hex[:12].upper()}"
         record = MigrationRecord(
-            migration_id=migration_id,
+            migration_id=mid,
             source_dialect=source_dialect,
             target_dialect=target_dialect,
             source_sql_hash=source_sql_hash,
@@ -268,19 +269,146 @@ class MigrationAssuranceService:
         return self._repository.get_all_migrations()
 
     def get_flagship_migration(self) -> MigrationRecord:
-        """Retrieve the latest persisted flagship migration, running once if none exists."""
-        migrations = self._repository.get_all_migrations()
-        if migrations:
-            return migrations[0]
+        """Retrieve the dedicated flagship migration (MIG-FLAGSHIP-001), creating it if not present."""
+        flagship = self._repository.get_migration("MIG-FLAGSHIP-001")
+        if flagship:
+            return flagship
 
-        # Seed flagship migration if store is currently empty
+        # Seed flagship migration uniquely if not yet initialized
         from scripts.run_flagship_demo import run_flagship_demo
-        run_flagship_demo()
+        run_flagship_demo(flagship_id="MIG-FLAGSHIP-001")
+        flagship = self._repository.get_migration("MIG-FLAGSHIP-001")
+        if flagship:
+            return flagship
+
+        # Fallback if creation was customized
         all_now = self._repository.get_all_migrations()
         if all_now:
             return all_now[0]
 
         raise RuntimeError("Failed to initialize flagship migration.")
+
+    def run_migration_pipeline(
+        self,
+        *,
+        source_sql: str,
+        source_dialect: str = "teradata",
+        target_dialect: str = "bigquery",
+        dataset_id: str = "customer_risk",
+        profile: str = "dev",
+        mock_mode: str | None = None,
+    ) -> MigrationAssuranceReport:
+        """Execute complete Phase 1–9 migration pipeline dynamically for given SQL."""
+        import hashlib
+
+        from backend.analyzer.service import AnalyzerService
+        from backend.diagnosis.orchestrator import DiagnosisOrchestrator
+        from backend.diagnosis_ai.service import DiagnosisAIService
+        from backend.execution.models import ExecutionMode, ExecutionRequest
+        from backend.execution.service import ExecutionService
+        from backend.repair_verification.service import RepairVerificationService
+        from backend.translator.models import TranslationRequest
+        from backend.translator.service import TranslationService
+        from backend.validation.service import ValidationService
+
+        # 1. AI Translation
+        trans_req = TranslationRequest(
+            source_sql=source_sql,
+            source_dialect=source_dialect,
+            target_dialect=target_dialect,
+            dataset_id=dataset_id,
+        )
+        trans_res = TranslationService.translate(trans_req, mock_mode=mock_mode)
+        candidate_sql = trans_res.response.target_sql if trans_res.response and trans_res.response.target_sql else source_sql
+
+        # 2. Execution (Source & Target)
+        src_exec = ExecutionService.execute(
+            ExecutionRequest(
+                sql=source_sql,
+                dialect=source_dialect,
+                dataset_id=dataset_id,
+                execution_mode=ExecutionMode.SOURCE,
+            )
+        )
+        tgt_exec = ExecutionService.execute(
+            ExecutionRequest(
+                sql=candidate_sql,
+                dialect=target_dialect,
+                dataset_id=dataset_id,
+                execution_mode=ExecutionMode.TARGET,
+            )
+        )
+
+        # 3. Validation
+        val_report = ValidationService.validate_executions(
+            source_execution_id=src_exec.execution_id,
+            target_execution_id=tgt_exec.execution_id,
+        )
+
+        # 4. Discrepancy Analysis
+        src_ana = AnalyzerService.analyze(source_sql)
+        tgt_ana = AnalyzerService.analyze(candidate_sql)
+        orchestrator = DiagnosisOrchestrator()
+        disc_report = orchestrator.diagnose(
+            report=val_report,
+            source_analysis=src_ana,
+            target_analysis=tgt_ana,
+            total_output_rows=src_exec.row_count,
+        )
+
+        # 5. AI Diagnosis & Repair Proposal
+        diag_ai_res = None
+        ver_res = None
+        if disc_report and disc_report.discrepancies:
+            primary_disc = disc_report.discrepancies[0]
+            diag_ai_res = DiagnosisAIService.diagnose_discrepancy(
+                discrepancy_id=primary_disc.discrepancy_id,
+                category=primary_disc.category.value,
+                severity=primary_disc.severity.value,
+                source_sql=source_sql,
+                target_sql=candidate_sql,
+                source_dialect=source_dialect,
+                target_dialect=target_dialect,
+                affected_row_count=primary_disc.affected_row_count,
+                affected_percentage=primary_disc.affected_percentage,
+                affected_columns=primary_disc.affected_columns,
+                validation_id=val_report.validation_id,
+                translation_id=trans_res.metadata.translation_id,
+                mock_mode=mock_mode,
+            )
+
+            # 6. Repair Verification
+            if diag_ai_res and diag_ai_res.repair_proposal and diag_ai_res.repair_proposal.proposed_sql:
+                ver_res = RepairVerificationService.verify_repair(
+                    repair_id=diag_ai_res.repair_proposal.repair_id,
+                    discrepancy_id=primary_disc.discrepancy_id,
+                    target_dialect=target_dialect,
+                    validation_report_before=val_report,
+                    source_execution=src_exec,
+                )
+
+        # 7. Assurance & Audit Lineage
+        source_hash = hashlib.sha256(source_sql.encode()).hexdigest()[:16]
+        migration = self.create_migration(
+            source_dialect=source_dialect,
+            target_dialect=target_dialect,
+            source_sql_hash=source_hash,
+            dataset_id=dataset_id,
+            dataset_hash=src_exec.dataset_hash,
+        )
+
+        assurance_report = self.evaluate_assurance(
+            migration_id=migration.migration_id,
+            translation_result=trans_res,
+            source_execution=src_exec,
+            target_execution=tgt_exec,
+            validation_report=val_report,
+            discrepancy_report=disc_report,
+            diagnosis_ai_result=diag_ai_res,
+            repair_verification_result=ver_res,
+        )
+        assurance_report.metadata["profile"] = profile
+        return assurance_report
 
     # -----------------------------------------------------------------------
     # Internal helpers

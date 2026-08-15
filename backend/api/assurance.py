@@ -44,11 +44,19 @@ def get_flagship_migration() -> MigrationRecord:
 
 @assurance_router.post("/run")
 def run_migration(req: MigrationRunRequest) -> MigrationRecord:
-    """Trigger a new migration workflow run."""
-    # Run flagship or standard pipeline
-    from scripts.run_flagship_demo import run_flagship_demo
-    run_flagship_demo()
-    return _service.get_flagship_migration()
+    """Trigger a new migration workflow run dynamically for user SQL & parameters."""
+    report = _service.run_migration_pipeline(
+        source_sql=req.source_sql,
+        source_dialect=req.source_dialect,
+        target_dialect=req.target_dialect,
+        dataset_id=req.dataset_id,
+    )
+    record = _service.get_migration(report.migration_id)
+    if record is None:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve created migration record {report.migration_id}"
+        )
+    return record
 
 
 @assurance_router.get("/{migration_id}")

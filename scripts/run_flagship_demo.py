@@ -68,7 +68,7 @@ def _print_assurance_report(report):
 
 
 
-def run_flagship_demo():
+def run_flagship_demo(flagship_id: str = "MIG-FLAGSHIP-001"):
     print("=" * 85)
     print("MIGRA-Q FLAGSHIP END-TO-END DEMO & FULL AUDIT LINEAGE PROOF")
     print("=" * 85)
@@ -269,6 +269,7 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;
     import hashlib
     source_hash = hashlib.sha256(source_sql.encode()).hexdigest()[:16]
     migration = assurance_service.create_migration(
+        migration_id=flagship_id,
         source_dialect="teradata",
         target_dialect="bigquery",
         source_sql_hash=source_hash,
