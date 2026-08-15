@@ -17,6 +17,9 @@ class BoundaryClassifier(BaseRuleClassifier):
         return DiscrepancyCategory.BOUNDARY_CONDITION
 
     def matches(self, signal: RawDiscrepancySignal, signals: list[RawDiscrepancySignal]) -> bool:
+        if signal.signal_type in ("BOUNDARY_CASE", "BOUNDARY_CONDITION_CHANGED", "OPERATOR_INCLUSION"):
+            return True
+
         src = signal.source_expression or str(signal.payload.get("source_value", ""))
         tgt = signal.target_expression or str(signal.payload.get("target_value", ""))
 

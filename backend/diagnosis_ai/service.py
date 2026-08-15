@@ -264,6 +264,7 @@ class DiagnosisAIService:
         rep = RepairProposal(
             repair_id=repair_id,
             discrepancy_id=discrepancy_id,
+            discrepancy_fingerprint=context.discrepancy_fingerprint,
             status=repair_status,
             original_sql=target_sql,
             proposed_sql=proposed_sql if repair_status == RepairStatus.PROPOSED else "",

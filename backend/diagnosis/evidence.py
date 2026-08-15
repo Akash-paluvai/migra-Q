@@ -39,7 +39,6 @@ class EvidenceConsolidator:
             s
             for s in signals
             if s.source_validator in ("BusinessRuleValidator", "AST_ANALYZER")
-            or s.source_expression
         ]
 
         for sig in signals:
@@ -52,12 +51,26 @@ class EvidenceConsolidator:
                 row_col = sig.payload.get("column")
                 for ast_s in ast_signals:
                     ast_col = ast_s.payload.get("column")
+                    path_col = path[8:-1] if path.startswith("columns[") and path.endswith("]") else None
+                    ast_path_col = (
+                        ast_s.analysis_path[8:-1]
+                        if ast_s.analysis_path.startswith("columns[") and ast_s.analysis_path.endswith("]")
+                        else None
+                    )
+                    col1 = row_col or path_col
+                    col2 = ast_col or ast_path_col
+
+                    # Explicit column mismatch cannot be linked across different columns
+                    if col1 and col2 and col1 != col2:
+                        continue
+
                     ast_expr = (
                         (ast_s.source_expression or "") + " " + (ast_s.target_expression or "")
                     )
 
                     is_path_match = (
                         not path
+                        or not ast_s.analysis_path
                         or path == ast_s.analysis_path
                         or path.startswith(ast_s.analysis_path)
                         or ast_s.analysis_path.startswith(path)
@@ -66,13 +79,18 @@ class EvidenceConsolidator:
                     is_expr_match = bool(row_col and row_col in ast_expr)
 
                     if is_path_match or is_col_match or is_expr_match:
-                        src_expr = src_expr or ast_s.source_expression
-                        tgt_expr = tgt_expr or ast_s.target_expression
-                        path = ast_s.analysis_path
+                        src_expr = ast_s.source_expression or src_expr
+                        tgt_expr = ast_s.target_expression or tgt_expr
+                        path = ast_s.analysis_path or path
                         sig.source_expression = src_expr
                         sig.target_expression = tgt_expr
                         sig.analysis_path = path
                         break
+
+            # Ensure local variables reflect the updated signal expressions
+            src_expr = sig.source_expression
+            tgt_expr = sig.target_expression
+            path = sig.analysis_path
 
             candidate = self.classifier.classify_signal(sig, signals)
             base_path = path or candidate.analysis_path
@@ -121,7 +139,11 @@ class EvidenceConsolidator:
                     or "mismatch" in s.signal_type
                 ):
                     has_exec_evidence = True
-                    row_cnt = payload.get("mismatch_count", 0) or payload.get("rows_compared", 0)
+                    row_cnt = (
+                        payload.get("mismatch_count", 0)
+                        or payload.get("rows_compared", 0)
+                        or len([x for x in sig_list if x.source_validator == "RowValidator"])
+                    )
                     if row_cnt > affected_rows:
                         affected_rows = row_cnt
 
@@ -228,6 +250,7 @@ class EvidenceConsolidator:
                     classification_reason=classification_reason,
                     analysis_path=candidate.analysis_path,
                     discrepancy_signature=sig_hash,
+                    discrepancy_fingerprint=sig_hash,
                     created_at=created_at,
                 )
             )

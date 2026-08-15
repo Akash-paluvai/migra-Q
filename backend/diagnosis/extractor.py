@@ -44,6 +44,7 @@ class SignalExtractor:
             # Process evidence items inside check
             for ev in chk.evidence:
                 ev_dict = ev.model_dump()
+                ev_dict["mismatch_count"] = chk.mismatch_count
                 ev_type = ev_dict.get("type", "")
                 cat = ev_dict.get("category", "")
                 src_val = ev_dict.get("source_value")

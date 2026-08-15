@@ -73,6 +73,14 @@ class VerificationStatusDeterminer:
 
         # Rule 6: Targeted discrepancy resolved -> VERIFIED
         if target_outcome.status == DiscrepancyOutcomeStatus.RESOLVED:
+            if target_outcome.affected_rows_before == 0:
+                return (
+                    VerificationStatus.FAILED_VERIFICATION,
+                    (
+                        f"FAILED_VERIFICATION: Targeted discrepancy '{target_outcome.discrepancy_id_before}' had "
+                        f"0 affected rows before repair. 0 -> 0 cannot yield VERIFIED status for behavioral discrepancy."
+                    ),
+                )
             return (
                 VerificationStatus.VERIFIED,
                 (

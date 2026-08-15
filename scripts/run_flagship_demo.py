@@ -36,23 +36,24 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from backend.core.config import settings
+from backend.core.config import settings  # noqa: E402
 
 settings.APP_ENV = "test"
 settings.PERSISTENCE_MODE = "memory"
 
-from backend.diagnosis.orchestrator import DiagnosisOrchestrator
-from backend.diagnosis_ai.service import DiagnosisAIService
-from backend.execution.models import ExecutionMode, ExecutionRequest
-from backend.execution.service import ExecutionService
-from backend.lab.config import GENERATOR_VERSION, SCHEMA_VERSION
-from backend.lab.exporters.parquet import export_to_parquet
-from backend.lab.models import ALL_SCHEMAS, DatasetManifest
-from backend.lab.scenarios.registry import get_scenario
-from backend.repair_verification.service import RepairVerificationService
-from backend.translator.models import TranslationRequest
-from backend.translator.service import TranslationService
-from backend.validation.service import ValidationService
+from backend.analyzer.service import AnalyzerService  # noqa: E402
+from backend.diagnosis.orchestrator import DiagnosisOrchestrator  # noqa: E402
+from backend.diagnosis_ai.service import DiagnosisAIService  # noqa: E402
+from backend.execution.models import ExecutionMode, ExecutionRequest  # noqa: E402
+from backend.execution.service import ExecutionService  # noqa: E402
+from backend.lab.config import GENERATOR_VERSION, SCHEMA_VERSION  # noqa: E402
+from backend.lab.exporters.parquet import export_to_parquet  # noqa: E402
+from backend.lab.models import ALL_SCHEMAS, DatasetManifest  # noqa: E402
+from backend.lab.scenarios.registry import get_scenario  # noqa: E402
+from backend.repair_verification.service import RepairVerificationService  # noqa: E402
+from backend.translator.models import TranslationRequest  # noqa: E402
+from backend.translator.service import TranslationService  # noqa: E402
+from backend.validation.service import ValidationService  # noqa: E402
 
 
 def run_flagship_demo():
@@ -167,8 +168,15 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;
     print("\n" + "-" * 85)
     print("[PHASE 5] DISCREPANCY CLASSIFICATION & EVIDENCE CONSOLIDATION")
     print("-" * 85)
+    src_ana = AnalyzerService.analyze(source_sql)
+    tgt_ana = AnalyzerService.analyze(candidate_sql)
     orchestrator = DiagnosisOrchestrator()
-    disc_report = orchestrator.diagnose(report=val_report)
+    disc_report = orchestrator.diagnose(
+        report=val_report,
+        source_analysis=src_ana,
+        target_analysis=tgt_ana,
+        total_output_rows=src_exec.row_count,
+    )
     diagnosis_id = disc_report.diagnosis_id
     print(f"-> Diagnosis ID: {diagnosis_id}")
     print(f"-> Total Discrepancies Classified: {len(disc_report.discrepancies)}")

@@ -6,6 +6,7 @@ import hashlib
 import json
 from typing import Any
 
+from backend.diagnosis.normalizer import compute_discrepancy_signature
 from backend.diagnosis_ai.models import (
     DiagnosisContext,
     EvidenceItem,
@@ -136,8 +137,16 @@ def build_diagnosis_context(
     serialized = json.dumps(raw_hash_data, sort_keys=True)
     context_hash = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
+    fingerprint = compute_discrepancy_signature(
+        category=evidence_pack.category,
+        analysis_path=evidence_pack.analysis_path or "",
+        source_expr=evidence_pack.source_expression,
+        target_expr=evidence_pack.target_expression,
+    )
+
     return DiagnosisContext(
         discrepancy_id=discrepancy_id,
+        discrepancy_fingerprint=fingerprint,
         validation_id=validation_id,
         translation_id=translation_id,
         source_sql=source_sql,

@@ -83,6 +83,7 @@ class RepairProposal(BaseModel):
 
     repair_id: str
     discrepancy_id: str
+    discrepancy_fingerprint: str = ""
     status: RepairStatus
     original_sql: str
     proposed_sql: str
@@ -115,6 +116,7 @@ class DiagnosisContext(BaseModel):
     """Complete context container built deterministically from upstream Phase 1-6 artifacts."""
 
     discrepancy_id: str
+    discrepancy_fingerprint: str = ""
     validation_id: str
     translation_id: str
     source_sql: str

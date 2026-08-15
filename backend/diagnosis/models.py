@@ -109,6 +109,7 @@ class DiscrepancyRecord(BaseModel):
     classification_reason: str
     analysis_path: str = ""
     discrepancy_signature: str = ""
+    discrepancy_fingerprint: str = ""
     created_at: str
 
 class DiscrepancyReport(BaseModel):

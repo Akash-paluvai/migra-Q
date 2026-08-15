@@ -21,6 +21,7 @@ class CandidateRepairValidator:
         target_dialect: str = "bigquery",
         expected_tables: list[str] | None = None,
         stored_proposal_sql: str | None = None,
+        expected_fingerprint: str | None = None,
     ) -> tuple[bool, str, dict]:
         """Run 12 candidate integrity checks before execution.
 
@@ -102,7 +103,15 @@ class CandidateRepairValidator:
         if not valid_scope:
             return False, "SCOPE_CONSTRAINT_VIOLATION", {"details": scope_msg, "constraints_checked": constraints}
 
+        # 13. Discrepancy fingerprint identity check
+        if expected_fingerprint and proposal.discrepancy_fingerprint:
+            if proposal.discrepancy_fingerprint != expected_fingerprint:
+                return False, "DISCREPANCY_FINGERPRINT_MISMATCH", {
+                    "proposal_fingerprint": proposal.discrepancy_fingerprint,
+                    "expected_fingerprint": expected_fingerprint,
+                }
+
         return True, "CANDIDATE_ACCEPTED", {
-            "checks_passed": 12,
+            "checks_passed": 13 if (expected_fingerprint and proposal.discrepancy_fingerprint) else 12,
             "constraints_checked": constraints,
         }

@@ -19,9 +19,10 @@ class ColumnMappingClassifier(BaseRuleClassifier):
             "COLUMN_MAPPING_CHANGED",
             "SCHEMA_COLUMN_ADDED",
             "SCHEMA_COLUMN_REMOVED",
+            "COLUMN_SHIFT",
         ):
             return True
-        if "COLUMN" in signal.signal_type or "column" in signal.analysis_path:
+        if "COLUMN_MAPPING" in signal.signal_type or "mapping" in signal.analysis_path:
             return True
         return False
 
