@@ -305,9 +305,9 @@ class MigrationAssuranceReportModel(Base):
     final_status = Column(String(32), nullable=False)
     decision_reason = Column(Text, nullable=True)
     verification_path = Column(String(32), nullable=False)
-    evidence_score = Column(Float, nullable=False, default=0.0)
-    evidence_coverage = Column(Float, nullable=False, default=0.0)
-    band = Column(String(32), nullable=False)
+    evidence_score = Column(Float, nullable=True)
+    evidence_coverage = Column(Float, nullable=True)
+    band = Column(String(32), nullable=True)
     report_json = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

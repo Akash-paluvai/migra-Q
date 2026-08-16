@@ -84,6 +84,12 @@ class MigrationAssuranceRepository:
             from backend.db.database import get_db_session
             from backend.db.models import MigrationRecordModel
 
+            current_state_str = record.current_state.value if hasattr(record.current_state, "value") else str(record.current_state)
+            final_status_str = (
+                record.final_status.value if record.final_status and hasattr(record.final_status, "value")
+                else (str(record.final_status) if record.final_status else "IN_PROGRESS")
+            )
+
             session = get_db_session()
             try:
                 existing = session.query(MigrationRecordModel).filter_by(migration_id=record.migration_id).first()
@@ -93,8 +99,8 @@ class MigrationAssuranceRepository:
                     existing.source_sql_hash = record.source_sql_hash
                     existing.dataset_id = record.dataset_id
                     existing.dataset_hash = record.dataset_hash
-                    existing.current_state = record.current_state.value
-                    existing.final_status = record.final_status.value
+                    existing.current_state = current_state_str
+                    existing.final_status = final_status_str
                     existing.assurance_score = record.assurance_score
                     existing.evidence_coverage = record.evidence_coverage
                     existing.assurance_version = record.assurance_version
@@ -107,8 +113,8 @@ class MigrationAssuranceRepository:
                         source_sql_hash=record.source_sql_hash,
                         dataset_id=record.dataset_id,
                         dataset_hash=record.dataset_hash,
-                        current_state=record.current_state.value,
-                        final_status=record.final_status.value,
+                        current_state=current_state_str,
+                        final_status=final_status_str,
                         assurance_score=record.assurance_score,
                         evidence_coverage=record.evidence_coverage,
                         assurance_version=record.assurance_version,
@@ -126,12 +132,15 @@ class MigrationAssuranceRepository:
             from backend.db.database import get_db_session
             from backend.db.models import MigrationStateEventModel
 
+            from_state_str = event.from_state.value if hasattr(event.from_state, "value") else str(event.from_state)
+            to_state_str = event.to_state.value if hasattr(event.to_state, "value") else str(event.to_state)
+
             session = get_db_session()
             try:
                 db_record = MigrationStateEventModel(
                     migration_id=event.migration_id,
-                    from_state=event.from_state.value,
-                    to_state=event.to_state.value,
+                    from_state=from_state_str,
+                    to_state=to_state_str,
                     reason=event.reason,
                     artifact_id=event.artifact_id,
                 )
@@ -148,28 +157,43 @@ class MigrationAssuranceRepository:
             from backend.db.database import get_db_session
             from backend.db.models import MigrationAssuranceReportModel
 
+            final_status_str = (
+                report.final_status.value if report.final_status and hasattr(report.final_status, "value")
+                else str(report.final_status)
+            )
+            verification_path_str = (
+                report.verification_path.value if report.verification_path and hasattr(report.verification_path, "value")
+                else (str(report.verification_path) if report.verification_path else "DIRECT_PASS")
+            )
+            band_str = (
+                report.score.band.value if report.score and report.score.band and hasattr(report.score.band, "value")
+                else (str(report.score.band) if report.score and report.score.band else None)
+            )
+            evidence_score_val = report.score.evidence_score if report.score else None
+            evidence_coverage_val = report.score.evidence_coverage if report.score else None
+
             session = get_db_session()
             try:
                 existing = session.query(MigrationAssuranceReportModel).filter_by(migration_id=report.migration_id).first()
                 if existing:
                     existing.assurance_version = report.assurance_version
-                    existing.final_status = report.final_status.value
+                    existing.final_status = final_status_str
                     existing.decision_reason = report.decision_reason
-                    existing.verification_path = report.verification_path.value
-                    existing.evidence_score = report.score.evidence_score
-                    existing.evidence_coverage = report.score.evidence_coverage
-                    existing.band = report.score.band.value
+                    existing.verification_path = verification_path_str
+                    existing.evidence_score = evidence_score_val
+                    existing.evidence_coverage = evidence_coverage_val
+                    existing.band = band_str
                     existing.report_json = report.model_dump_json()
                 else:
                     db_record = MigrationAssuranceReportModel(
                         migration_id=report.migration_id,
                         assurance_version=report.assurance_version,
-                        final_status=report.final_status.value,
+                        final_status=final_status_str,
                         decision_reason=report.decision_reason,
-                        verification_path=report.verification_path.value,
-                        evidence_score=report.score.evidence_score,
-                        evidence_coverage=report.score.evidence_coverage,
-                        band=report.score.band.value,
+                        verification_path=verification_path_str,
+                        evidence_score=evidence_score_val,
+                        evidence_coverage=evidence_coverage_val,
+                        band=band_str,
                         report_json=report.model_dump_json(),
                     )
                     session.add(db_record)

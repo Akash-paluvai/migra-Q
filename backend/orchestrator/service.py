@@ -226,10 +226,12 @@ class MigrationOrchestrator:
                     f"[MigrationOrchestrator] [{migration_id}] Step 6/8: Phase 7 AI Diagnosis & Repair ({len(disc_report.discrepancies)} discrepancies found)"
                 )
                 primary_disc = disc_report.discrepancies[0]
+                category_str = primary_disc.category.value if hasattr(primary_disc.category, "value") else str(primary_disc.category)
+                severity_str = primary_disc.severity.value if hasattr(primary_disc.severity, "value") else str(primary_disc.severity)
                 diag_ai_res = DiagnosisAIService.diagnose_discrepancy(
                     discrepancy_id=primary_disc.discrepancy_id,
-                    category=primary_disc.category.value,
-                    severity=primary_disc.severity.value,
+                    category=category_str,
+                    severity=severity_str,
                     source_sql=source_sql,
                     target_sql=candidate_sql,
                     source_dialect=source_dialect,

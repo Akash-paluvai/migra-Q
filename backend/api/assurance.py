@@ -23,6 +23,7 @@ class MigrationRunRequest(BaseModel):
     source_dialect: str
     target_dialect: str
     dataset_id: str
+    mock_mode: str | None = None
 
 
 @assurance_router.get("")
@@ -62,6 +63,7 @@ def run_migration(req: MigrationRunRequest) -> MigrationRunResponse:
                 source_dialect=req.source_dialect,
                 target_dialect=req.target_dialect,
                 dataset_id=req.dataset_id,
+                mock_mode=req.mock_mode,
             )
         )
         rec = result.migration_record
