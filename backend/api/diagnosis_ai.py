@@ -32,11 +32,11 @@ class AIDiagnosisRequest(BaseModel):
     target_sql: str = Field(..., description="Target candidate SQL string")
     source_dialect: str = "teradata"
     target_dialect: str = "bigquery"
-    source_expression: str | None = "t.amount > 500"
-    target_expression: str | None = "t.amount >= 500"
+    source_expression: str | None = None
+    target_expression: str | None = None
     analysis_path: str | None = "columns[risk_class]"
-    affected_row_count: int = 10512
-    affected_percentage: float = 10.51
+    affected_row_count: int
+    affected_percentage: float
     affected_columns: list[str] = Field(default_factory=lambda: ["risk_class"])
     representative_examples: list[dict[str, Any]] = Field(default_factory=list)
     structural_differences: list[str] = Field(default_factory=list)

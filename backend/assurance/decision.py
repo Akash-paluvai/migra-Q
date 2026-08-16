@@ -115,21 +115,22 @@ class DecisionEngine:
         ]
 
         # Determine BLOCKED vs FAILED based on failure type
-        # Execution failures → FAILED; semantic issues → BLOCKED
-        execution_gate_ids = {"GATE-001", "GATE-003"}
-        has_execution_failure = any(
-            g.gate_id in execution_gate_ids for g in failed_gates
+        # Technical prerequisite failures (translation, execution, lineage) → FAILED
+        # Semantic evaluation failures (discrepancies, repair incomplete) → BLOCKED
+        technical_gate_ids = {"GATE-001", "GATE-002", "GATE-003", "GATE-010"}
+        has_technical_failure = any(
+            g.gate_id in technical_gate_ids for g in failed_gates
         )
 
-        if has_execution_failure:
+        if has_technical_failure:
             return (
                 MigrationFinalStatus.FAILED,
-                "Migration assurance evaluation could not be completed. "
+                "Migration assurance evaluation could not be completed due to technical prerequisite failure. "
                 f"Failed gates: {'; '.join(failed_descriptions)}",
             )
 
         return (
             MigrationFinalStatus.BLOCKED,
-            "Migration contains unresolved issues. "
+            "Migration contains unresolved semantic issues. "
             f"Failed gates: {'; '.join(failed_descriptions)}",
         )

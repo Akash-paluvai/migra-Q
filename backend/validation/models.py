@@ -77,9 +77,10 @@ class ValidationReport(BaseModel):
     """Complete aggregated validation report for a source-target comparison."""
 
     validation_id: str
+    migration_id: str | None = None
     source_execution_id: str
     target_execution_id: str
-    dataset_id: str = "customer_risk"
+    dataset_id: str | None = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     validator_version: str = VALIDATOR_VERSION
     checks: list[ValidationResult] = Field(default_factory=list)
@@ -90,7 +91,7 @@ class ValidationReport(BaseModel):
 class ValidationConfig(BaseModel):
     """Configurable tolerances, comparison keys, and validator settings."""
 
-    comparison_key: list[str] = Field(default_factory=lambda: ["customer_id"])
+    comparison_key: list[str] = Field(default_factory=list)
     numeric_absolute_tolerance: float = 1e-6
     numeric_relative_tolerance: float = 1e-5
     schema_column_order_matters: bool = True

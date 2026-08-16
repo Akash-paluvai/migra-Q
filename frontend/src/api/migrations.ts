@@ -2,6 +2,7 @@ import { fetchApi } from './client';
 import type {
   MigrationAssuranceReport,
   MigrationRecord,
+  MigrationRunResponse,
   MigrationStateEvent,
 } from '../types/migration';
 
@@ -22,8 +23,8 @@ export async function runMigration(data: {
   source_dialect?: string;
   target_dialect?: string;
   dataset_id?: string;
-}): Promise<MigrationRecord> {
-  return fetchApi<MigrationRecord>('/api/v1/migrations/run', {
+}): Promise<MigrationRunResponse> {
+  return fetchApi<MigrationRunResponse>('/api/v1/migrations/run', {
     method: 'POST',
     body: JSON.stringify(data),
   });

@@ -31,6 +31,15 @@ export type GateOutcome = 'PASS' | 'FAIL' | 'NOT_APPLICABLE';
 
 export type ComponentStatus = 'SCORED' | 'NOT_APPLICABLE' | 'ERROR';
 
+export interface MigrationRunResponse {
+  migration_id: string;
+  current_state: MigrationState;
+  source_dialect: string;
+  target_dialect: string;
+  dataset_id: string;
+  source_sql_hash: string;
+}
+
 export type AssuranceBand =
   | 'STRONG_EVIDENCE'
   | 'MINOR_CONCERNS'
@@ -64,9 +73,9 @@ export interface ScoreComponent {
 }
 
 export interface AssuranceScore {
-  evidence_score: number;
-  evidence_coverage: number;
-  band: AssuranceBand;
+  evidence_score: number | null;
+  evidence_coverage: number | null;
+  band: AssuranceBand | null;
   components: ScoreComponent[];
 }
 
@@ -77,6 +86,8 @@ export interface TranslationSummary {
   status: string;
   candidate_validation_status?: string | null;
   source_sql_hash: string;
+  source_sql?: string;
+  candidate_sql?: string;
   provider: string;
   model: string;
   created_at: string;
@@ -127,6 +138,8 @@ export interface RepairSummary {
   status: string;
   repair_confidence: number;
   changed_region: string;
+  original_sql?: string;
+  proposed_sql?: string;
 }
 
 export interface VerificationSummary {

@@ -129,12 +129,16 @@ class ScoreComponent(BaseModel):
 
 
 class AssuranceScore(BaseModel):
-    """Complete assurance scoring result."""
+    """Complete assurance scoring result.
 
-    evidence_score: float = 0.0
-    evidence_coverage: float = 0.0
-    band: AssuranceBand = AssuranceBand.POOR_ASSURANCE
+    evidence_score and evidence_coverage are None when validation evidence did not run.
+    """
+
+    evidence_score: float | None = None
+    evidence_coverage: float | None = None
+    band: AssuranceBand | None = None
     components: list[ScoreComponent] = Field(default_factory=list)
+
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +155,8 @@ class TranslationSummary(BaseModel):
     status: str
     candidate_validation_status: str | None = None
     source_sql_hash: str = ""
+    source_sql: str = ""
+    candidate_sql: str = ""
     provider: str = ""
     model: str = ""
     created_at: str = ""
@@ -213,6 +219,8 @@ class RepairSummary(BaseModel):
     status: str = ""
     repair_confidence: float = 0.0
     changed_region: str = ""
+    original_sql: str = ""
+    proposed_sql: str = ""
 
 
 class VerificationSummary(BaseModel):

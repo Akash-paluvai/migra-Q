@@ -56,6 +56,8 @@ class TranslationRequest(BaseModel):
     source_sql: str
     source_dialect: str = "teradata"
     target_dialect: str = "bigquery"
+    dataset_id: str | None = None
+    migration_id: str | None = None
     schema_context: SchemaContext | None = Field(default=None, alias="schema")
     analysis_reference: str | None = None
     request_id: str | None = None
@@ -100,6 +102,8 @@ class CandidateValidationStatus(str, Enum):
     INVALID_SYNTAX = "INVALID_SYNTAX"
     UNSAFE_SQL = "UNSAFE_SQL"
     SCHEMA_MISMATCH = "SCHEMA_MISMATCH"
+    NOT_EVALUATED = "NOT_EVALUATED"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 class TranslationStatus(str, Enum):
@@ -119,6 +123,7 @@ class TranslationMetadata(BaseModel):
 
     translation_id: str
     request_id: str
+    migration_id: str | None = None
     provider: str
     model: str
     source_dialect: str
@@ -149,3 +154,13 @@ class TranslationResult(BaseModel):
     response: TranslationResponse | None = None
     validation_summary: str = ""
     structural_differences: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def model_validate(cls, *args, **kwargs):
+        res = super().model_validate(*args, **kwargs)
+        if res.status != TranslationStatus.SUCCESS and res.candidate_validation_status == CandidateValidationStatus.VALID_SYNTAX:
+            raise ValueError(
+                f"IMPOSSIBLE_STATE: Translation status '{res.status}' cannot have candidate_validation_status 'VALID_SYNTAX'."
+            )
+        return res
+

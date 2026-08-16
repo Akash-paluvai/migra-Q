@@ -102,6 +102,7 @@ class RepairVerificationResult(BaseModel):
     """Complete, immutable Phase 8 repair verification result artifact."""
 
     verification_id: str
+    migration_id: str | None = None
     repair_id: str
     discrepancy_id: str
     validation_id_before: str

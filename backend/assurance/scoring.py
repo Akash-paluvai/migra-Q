@@ -64,15 +64,23 @@ class AssuranceScorer:
       - evidence_coverage: applicable_weight_sum as percentage [0, 100]
     """
 
-    def calculate(self, validation_report: ValidationReport) -> AssuranceScore:
+    def calculate(self, validation_report: ValidationReport | None) -> AssuranceScore:
         """Calculate assurance score from Phase 4 validation report.
 
         Args:
-            validation_report: Complete Phase 4 validation report.
+            validation_report: Complete Phase 4 validation report, or None if validation did not run.
 
         Returns:
             AssuranceScore with evidence_score, evidence_coverage, components, and band.
         """
+        if validation_report is None or not getattr(validation_report, "checks", None):
+            return AssuranceScore(
+                evidence_score=None,
+                evidence_coverage=None,
+                band=None,
+                components=[],
+            )
+
         # Build a lookup of check_name -> (status, score)
         check_lookup: dict[str, tuple[ValidationCheckStatus, float]] = {}
         for check in validation_report.checks:

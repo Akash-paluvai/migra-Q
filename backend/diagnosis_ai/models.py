@@ -151,6 +151,7 @@ class DiagnosisAIMetadata(BaseModel):
 class DiagnosisAIResult(BaseModel):
     """Top-level Phase 7 result artifact containing diagnosis and repair proposal."""
 
+    migration_id: str | None = None
     metadata: DiagnosisAIMetadata
     diagnosis: AIDiagnosis
     repair_proposal: RepairProposal

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { MigrationAssuranceReport } from '../types/migration';
 import { SqlDiffViewer } from '../components/SqlDiffViewer';
-import { CheckCircle2, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge';
 
 interface RepairViewProps {
@@ -12,26 +12,51 @@ export const RepairView: React.FC<RepairViewProps> = ({ report }) => {
   const summary = report.repair_summary;
   const verSummary = report.verification_summary;
   const isVerified = verSummary?.status === 'VERIFIED';
+  const hasRepair = Boolean(summary && summary.repair_id && summary.repair_id.trim());
 
-  const origSql = `SELECT
-  c.customer_id,
-  c.customer_segment,
-  SUM(t.amount) AS total_amount,
-  CASE WHEN t.amount >= 500.00 THEN 'HIGH_RISK' ELSE 'NORMAL' END AS risk_class
-FROM transactions t
-JOIN customers c ON t.customer_id = c.customer_id
-WHERE t.status = 'COMPLETED'
-GROUP BY c.customer_id, c.customer_segment, t.amount;`;
+  // Case 1: Translation or Execution failed
+  if (report.final_status === 'FAILED' && !hasRepair) {
+    return (
+      <div className="card-panel" style={{ padding: '32px', textAlign: 'center' }}>
+        <h3 style={{ color: '#64748B', marginBottom: '8px' }}>Repair Not Applicable</h3>
+        <p style={{ color: '#94A3B8', fontSize: '14px', maxWidth: '500px', margin: '0 auto' }}>
+          Automated AI repair was NOT RUN because upstream translation or execution failed.
+        </p>
+      </div>
+    );
+  }
 
-  const repSql = `SELECT
-  c.customer_id,
-  c.customer_segment,
-  SUM(t.amount) AS total_amount,
-  CASE WHEN t.amount > 500.00 THEN 'HIGH_RISK' ELSE 'NORMAL' END AS risk_class
-FROM transactions t
-JOIN customers c ON t.customer_id = c.customer_id
-WHERE t.status = 'COMPLETED'
-GROUP BY c.customer_id, c.customer_segment, t.amount;`;
+  // Case 2: Validation passed with 0 discrepancies (no repair needed)
+  if (!hasRepair && report.validation_summary?.overall_status === 'PASS') {
+    return (
+      <div className="card-panel">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#15803D' }}>
+          <CheckCircle2 size={24} />
+          <div>
+            <h3>NO REPAIR REQUIRED</h3>
+            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>
+              Target SQL candidate passed all semantic validation gates with 0 discrepancies without needing repair proposals.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Case 3: No repair proposal generated
+  if (!hasRepair || !summary) {
+    return (
+      <div className="card-panel" style={{ padding: '32px', textAlign: 'center' }}>
+        <h3 style={{ color: '#64748B', marginBottom: '8px' }}>No Repair Proposal Available</h3>
+        <p style={{ color: '#94A3B8', fontSize: '14px', maxWidth: '500px', margin: '0 auto' }}>
+          No automated repair candidate was generated for this migration.
+        </p>
+      </div>
+    );
+  }
+
+  const origSql = summary.original_sql || report.translation_summary?.candidate_sql || '';
+  const repSql = summary.proposed_sql || origSql;
 
   return (
     <div>
@@ -41,17 +66,22 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;`;
           <div>
             <h3>AI-GROUNDED REPAIR PROPOSAL</h3>
             <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>
-              Repair ID: {summary?.repair_id || 'rep-001'} | Target Discrepancy: D-001
+              Repair ID: {summary.repair_id} | Status: {summary.status}
             </p>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <StatusBadge status={summary?.status || 'PROPOSED'} />
+            <StatusBadge status={summary.status} />
 
-            {isVerified && (
+            {isVerified ? (
               <div style={{ backgroundColor: '#F0FDF4', color: '#15803D', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, border: '1px solid #BBF7D0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <ShieldCheck size={16} />
                 ✓ INDEPENDENTLY VERIFIED
+              </div>
+            ) : (
+              <div style={{ backgroundColor: '#FFFBEB', color: '#B45309', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertTriangle size={16} />
+                REPAIR PROPOSED
               </div>
             )}
           </div>
@@ -60,36 +90,29 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;`;
 
       {/* SQL Diff Panel */}
       <div className="card-panel">
-        <h3 style={{ marginBottom: '16px' }}>PROPOSED REPAIR SQL DIFF</h3>
+        <h3 style={{ marginBottom: '16px' }}>SQL REPAIR DIFF (CANDIDATE vs PROPOSED)</h3>
         <SqlDiffViewer
           originalSql={origSql}
           repairedSql={repSql}
-          diffHighlight={{
-            originalExpression: 't.amount >= 500.00',
-            repairedExpression: 't.amount > 500.00',
-          }}
         />
       </div>
 
-      {/* Repair Constraints & Safety Checklist */}
+      {/* Repair Metadata */}
       <div className="card-panel">
-        <h3 style={{ marginBottom: '16px' }}>SAFETY & CONSTRAINT VALIDATION</h3>
-
+        <h3 style={{ marginBottom: '12px' }}>REPAIR ATTRIBUTES</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-          {[
-            { label: 'Target Dialect Preserved', desc: 'Valid BigQuery syntax', status: true },
-            { label: 'Read-Only Safety', desc: 'No DDL / DML mutations', status: true },
-            { label: 'Output Schema Contract', desc: 'Columns & types intact', status: true },
-            { label: 'Scope Restricted', desc: 'Only risk_class modified', status: true },
-          ].map((item) => (
-            <div key={item.label} style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#15803D', fontSize: '13px', fontWeight: 600 }}>
-                <CheckCircle2 size={16} />
-                {item.label}
-              </div>
-              <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>{item.desc}</div>
-            </div>
-          ))}
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Repair ID</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', marginTop: '4px' }}>{summary.repair_id}</div>
+          </div>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Repair Confidence</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#2563EB', marginTop: '4px' }}>{(summary.repair_confidence * 100).toFixed(0)}%</div>
+          </div>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Target Region</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#166534', marginTop: '4px' }}>{summary.changed_region || 'N/A'}</div>
+          </div>
         </div>
       </div>
     </div>

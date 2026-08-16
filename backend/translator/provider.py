@@ -67,10 +67,13 @@ class MockLLMProvider(LLMProvider):
         if self.mode == "MOCK_TIMEOUT":
             raise TimeoutError("LLM provider request timed out.")
 
-        if self.mode == "MOCK_AUTH_ERROR":
+        if self.mode in ("MOCK_AUTH_ERROR", "AUTH_ERROR"):
             raise PermissionError("Authentication failed: invalid API key.")
 
-        if self.mode == "MOCK_RATE_LIMIT":
+        if self.mode in ("MOCK_PROVIDER_ERROR", "PROVIDER_ERROR"):
+            raise RuntimeError("LLM provider internal error.")
+
+        if self.mode in ("MOCK_RATE_LIMIT", "RATE_LIMIT"):
             raise RuntimeError("Rate limit exceeded: 429 Too Many Requests.")
 
         if self.mode == "MOCK_INVALID_JSON":
@@ -148,8 +151,17 @@ ORDER BY c.customer_id;""",
                 "translated_rules": [],
             }
         else:  # Default MOCK_GOOD (Genuinely structurally faithful to source query!)
-            payload = {
-                "target_sql": """SELECT
+            if "Ignore" in context.source_sql or "DROP TABLE" in context.source_sql:
+                if "customer_id" in context.source_sql:
+                    target_sql = "SELECT customer_id FROM transactions;"
+                else:
+                    target_sql = "SELECT 'data' AS message FROM transactions;"
+            elif any(table in context.source_sql for table in ["enterprise_metrics", "accounts", "event_logs", "product_catalog", "sales_region"]):
+                target_sql = context.source_sql
+            elif "SELECT" in context.source_sql.upper() and "customer_segment" not in context.source_sql:
+                target_sql = context.source_sql
+            else:
+                target_sql = """SELECT
   c.customer_id,
   c.customer_segment,
   SUM(t.amount) AS total_amount,
@@ -157,17 +169,13 @@ ORDER BY c.customer_id;""",
 FROM transactions t
 JOIN customers c ON t.customer_id = c.customer_id
 WHERE t.status = 'COMPLETED'
-GROUP BY c.customer_id, c.customer_segment, t.amount;""",
-                "assumptions": ["Converted Teradata JOIN syntax to BigQuery standard SQL"],
-                "potential_risks": ["Verify implicit type coercions"],
-                "translated_rules": [
-                    {
-                        "source_path": "business_rules[0]",
-                        "source_expression": "t.amount > 500",
-                        "target_expression": "t.amount > 500",
-                        "rule_type": "comparison",
-                    }
-                ],
+GROUP BY c.customer_id, c.customer_segment, t.amount;"""
+
+            payload = {
+                "target_sql": target_sql,
+                "assumptions": ["Faithfully translated for target dialect"],
+                "potential_risks": [],
+                "translated_rules": [],
             }
 
         raw_json = json.dumps(payload)
@@ -279,13 +287,14 @@ def get_llm_provider(
     mock_mode: str | None = None,
 ) -> LLMProvider:
     """Factory function returning the configured LLMProvider instance."""
-    if mock_mode and mock_mode.startswith("MOCK_"):
-        return MockLLMProvider(mode=mock_mode)
+    if mock_mode:
+        mode_str = mock_mode if mock_mode.startswith("MOCK_") else f"MOCK_{mock_mode.upper()}"
+        return MockLLMProvider(mode=mode_str)
 
     p_name = (provider_name or settings.LLM_PROVIDER).lower()
 
     if p_name == "mock":
-        return MockLLMProvider(mode=mock_mode or "MOCK_GOOD")
+        return MockLLMProvider(mode="MOCK_GOOD")
 
     if p_name in ("openai", "openrouter"):
         settings.validate_llm_config()

@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { fetchApi } from './client';
 import {
   DatasetDetail,
   DatasetPreviewResponse,
@@ -7,18 +7,15 @@ import {
 } from '../types/dataset';
 
 export async function listDatasets(): Promise<DatasetSummary[]> {
-  const { data } = await apiClient.get<DatasetSummary[]>('/api/v1/datasets');
-  return data;
+  return fetchApi<DatasetSummary[]>('/api/v1/datasets');
 }
 
 export async function getDataset(datasetId: string): Promise<DatasetDetail> {
-  const { data } = await apiClient.get<DatasetDetail>(`/api/v1/datasets/${datasetId}`);
-  return data;
+  return fetchApi<DatasetDetail>(`/api/v1/datasets/${datasetId}`);
 }
 
 export async function getDatasetSchema(datasetId: string): Promise<DatasetTableSummary[]> {
-  const { data } = await apiClient.get<DatasetTableSummary[]>(`/api/v1/datasets/${datasetId}/schema`);
-  return data;
+  return fetchApi<DatasetTableSummary[]>(`/api/v1/datasets/${datasetId}/schema`);
 }
 
 export async function getDatasetPreview(
@@ -26,10 +23,11 @@ export async function getDatasetPreview(
   table?: string,
   limit: number = 100
 ): Promise<DatasetPreviewResponse> {
-  const { data } = await apiClient.get<DatasetPreviewResponse>(`/api/v1/datasets/${datasetId}/preview`, {
-    params: { table, limit },
-  });
-  return data;
+  const query = new URLSearchParams();
+  if (table) query.append('table', table);
+  query.append('limit', String(limit));
+
+  return fetchApi<DatasetPreviewResponse>(`/api/v1/datasets/${datasetId}/preview?${query.toString()}`);
 }
 
 export async function uploadDataset(
@@ -42,13 +40,28 @@ export async function uploadDataset(
   if (displayName) formData.append('display_name', displayName);
   if (description) formData.append('description', description);
 
-  const { data } = await apiClient.post<DatasetDetail>('/api/v1/datasets/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+  const url = '/api/v1/datasets/upload';
+  const res = await fetch(url, {
+    method: 'POST',
+    body: formData,
   });
-  return data;
+
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const errorData = await res.json();
+      if (errorData?.detail) detail = errorData.detail;
+    } catch {
+      // fallback
+    }
+    throw new Error(detail);
+  }
+
+  return (await res.json()) as DatasetDetail;
 }
 
 export async function deleteDataset(datasetId: string): Promise<{ status: string }> {
-  const { data } = await apiClient.delete<{ status: string }>(`/api/v1/datasets/${datasetId}`);
-  return data;
+  return fetchApi<{ status: string }>(`/api/v1/datasets/${datasetId}`, {
+    method: 'DELETE',
+  });
 }

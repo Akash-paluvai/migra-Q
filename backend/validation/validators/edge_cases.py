@@ -72,6 +72,10 @@ class EdgeCaseValidator(BaseValidator):
                     )
                 )
 
+        comp_keys = context.config.comparison_key
+        if not comp_keys and not df_src.columns.empty:
+            comp_keys = [df_src.columns[0]]
+
         # Check boundary condition values (e.g. 499.99, 500.00, 500.01 in results if available)
         boundary_vals = [499.99, 500.00, 500.01]
         for col in df_src.columns:
@@ -84,7 +88,7 @@ class EdgeCaseValidator(BaseValidator):
                         src_sub = df_src[df_src[col] == bval]
                         tgt_sub = df_tgt[df_tgt[col] == bval]
 
-                        for key_col in context.config.comparison_key:
+                        for key_col in comp_keys:
                             if key_col in src_sub.columns and key_col in tgt_sub.columns:
                                 s_keys = set(src_sub[key_col].astype(str))
                                 t_keys = set(tgt_sub[key_col].astype(str))

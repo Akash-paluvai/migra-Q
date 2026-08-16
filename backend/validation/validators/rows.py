@@ -26,6 +26,12 @@ class RowValidator(BaseValidator):
         tgt_exec = context.target_execution
 
         keys = context.config.comparison_key
+        if not keys and src_exec and src_exec.columns:
+            cols = [c.name if hasattr(c, "name") else str(c) for c in src_exec.columns]
+            if cols:
+                # Infer comparison key from first column of result schema (primary/leading column convention)
+                keys = [cols[0]]
+
         if not keys:
             return ValidationResult(
                 check_name=self.name,
@@ -36,16 +42,6 @@ class RowValidator(BaseValidator):
                 summary="Comparison key required for row-level semantic comparison.",
                 duration_ms=round((time.perf_counter() - start_time) * 1000.0, 2),
             )
-
-        if src_exec and src_exec.columns:
-            cols = [c.name if hasattr(c, "name") else str(c) for c in src_exec.columns]
-            if "customer_id" in cols:
-                inferred = ["customer_id"]
-                for c in ("customer_segment", "total_amount"):
-                    if c in cols and c not in inferred:
-                        inferred.append(c)
-                if len(inferred) > len(keys):
-                    keys = inferred
 
         try:
             res = compare_relations(

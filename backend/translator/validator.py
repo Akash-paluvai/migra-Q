@@ -49,19 +49,7 @@ def validate_candidate_sql(
             "Candidate SQL is empty.",
         )
 
-    # 1. Read-only safety check using keyword scanning & SQLGlot AST inspection
-    # Check top-level statement keywords
-    upper_sql = cleaned_sql.upper()
-    tokens = re.findall(r"\b[A-Z_]+\b", upper_sql)
-    for kw in PROHIBITED_MUTATION_KEYWORDS:
-        if kw in tokens and kw != "SELECT":
-            return (
-                CandidateValidationStatus.UNSAFE_SQL,
-                "TARGET_SQL_NOT_READ_ONLY",
-                f"Candidate SQL contains prohibited mutating operation: '{kw}'.",
-            )
-
-    # 2. Parse check using SQLGlot
+    # 1. Parse check using SQLGlot
     try:
         # SQLGlot dialect mapping
         glot_dialect = target_dialect.lower()
@@ -72,18 +60,44 @@ def validate_candidate_sql(
 
         parsed = sqlglot.parse_one(cleaned_sql, read=glot_dialect)
     except Exception as e:
+        # Check first token for obvious mutation keywords
+        first_word = cleaned_sql.split()[0].upper() if cleaned_sql.split() else ""
+        if first_word in PROHIBITED_MUTATION_KEYWORDS:
+            return (
+                CandidateValidationStatus.UNSAFE_SQL,
+                "TARGET_SQL_NOT_READ_ONLY",
+                f"Candidate SQL contains prohibited mutating operation: '{first_word}'.",
+            )
         return (
             CandidateValidationStatus.INVALID_SYNTAX,
             "UNPARSEABLE_SQL",
             f"Candidate SQL could not be parsed for dialect '{target_dialect}': {e}",
         )
 
-    # Confirm statement type is SELECT or Expression
-    if not isinstance(parsed, (exp.Select, exp.Union, exp.Subquery, exp.Expression)):
+    # 2. Read-only safety check using SQLGlot AST inspection
+    MUTATING_TYPES = (
+        exp.Insert,
+        exp.Update,
+        exp.Delete,
+        exp.Drop,
+        exp.Alter,
+        exp.Create,
+        exp.Command,
+        exp.Pragma,
+    )
+
+    if isinstance(parsed, MUTATING_TYPES) or any(parsed.find_all(MUTATING_TYPES)):
         return (
             CandidateValidationStatus.UNSAFE_SQL,
             "TARGET_SQL_NOT_READ_ONLY",
-            f"Candidate SQL root statement type '{type(parsed).__name__}' is not read-only.",
+            f"Candidate SQL root statement type '{type(parsed).__name__}' contains prohibited mutating operations.",
+        )
+
+    if not isinstance(parsed, (exp.Select, exp.Union, exp.Subquery, exp.Query)):
+        return (
+            CandidateValidationStatus.UNSAFE_SQL,
+            "TARGET_SQL_NOT_READ_ONLY",
+            f"Candidate SQL root statement type '{type(parsed).__name__}' is not a read-only query.",
         )
 
     # 3. Target Schema Consistency Check

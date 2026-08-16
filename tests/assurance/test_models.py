@@ -90,8 +90,8 @@ class TestMigrationAssuranceReport:
         report = MigrationAssuranceReport(migration_id="MIG-001")
         assert report.final_status == MigrationFinalStatus.IN_PROGRESS
         assert report.verification_path == VerificationPath.DIRECT_PASS
-        assert report.score.evidence_score == 0.0
-        assert report.score.evidence_coverage == 0.0
+        assert report.score.evidence_score is None
+        assert report.score.evidence_coverage is None
 
     def test_report_serialization(self):
         report = MigrationAssuranceReport(

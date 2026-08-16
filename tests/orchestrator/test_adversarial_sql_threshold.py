@@ -27,8 +27,8 @@ def test_adversarial_sql_threshold_changes_metrics():
     GROUP BY c.customer_id, c.customer_segment, t.amount;
     """.strip()
 
-    res_standard = orchestrator.run(PipelineRunRequest(source_sql=sql_flagship, dataset_id="customer_risk"))
-    res_adversarial = orchestrator.run(PipelineRunRequest(source_sql=sql_adversarial, dataset_id="customer_risk"))
+    res_standard = orchestrator.run(PipelineRunRequest(source_sql=sql_flagship, source_dialect="teradata", target_dialect="bigquery", dataset_id="customer_risk", mock_mode="DIRECT_PASS"))
+    res_adversarial = orchestrator.run(PipelineRunRequest(source_sql=sql_adversarial, source_dialect="teradata", target_dialect="bigquery", dataset_id="customer_risk", mock_mode="DIRECT_PASS"))
 
     # Assert distinct migration IDs
     assert res_standard.migration_id != res_adversarial.migration_id

@@ -13,7 +13,6 @@ from pathlib import Path
 
 import duckdb
 
-from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.datasets.models import (
     ColumnSchema,
@@ -187,6 +186,7 @@ class DatasetRegistry:
             ("join_semantics", "Join & Cardinality Lab", "INNER vs LEFT JOIN and duplicate key cardinality benchmarks", ["join", "cardinality"]),
             ("date_semantics", "Date & Timestamp Lab", "Date boundaries, truncations, and timestamp extraction benchmarks", ["date", "timestamp"]),
             ("mixed_business_logic", "Enterprise Multi-Rule Analytics", "Complex multi-rule enterprise analytics with mixed logic", ["enterprise", "mixed"]),
+            ("enterprise_metrics", "Enterprise Metrics Benchmark", "Enterprise KPI and metrics benchmark with 5000 rows", ["enterprise", "metrics"]),
         ]
 
         for dataset_id, name, desc, tags in builtin_specs:
@@ -224,7 +224,7 @@ class DatasetRegistry:
                 con.execute("CREATE TABLE secondary_entity AS SELECT i AS detail_id, (i % 1500) + 1 AS entity_id, 'Code_' || (i % 50) AS ref_code, (i % 10) * 5.5 AS extra_val FROM range(1, 4001) t(i)")
             elif dataset_id == "date_semantics":
                 con.execute("CREATE TABLE event_logs AS SELECT i AS event_id, DATE '2026-01-01' + INTERVAL (i % 365) DAY AS event_date, TIMESTAMP '2026-01-01 08:00:00' + INTERVAL (i % 86400) SECOND AS event_time, 'USER_' || (i % 100) AS user_id FROM range(1, 4001) t(i)")
-            else:  # mixed_business_logic
+            else:  # mixed_business_logic or enterprise_metrics
                 con.execute("CREATE TABLE enterprise_metrics AS SELECT i AS metric_id, 'Dept_' || (i % 8) AS department, i * 12.5 AS score, CASE WHEN i % 2 = 0 THEN 'PASS' ELSE 'FAIL' END AS gate_status FROM range(1, 5001) t(i)")
 
             tables = con.execute("SHOW TABLES").fetchall()

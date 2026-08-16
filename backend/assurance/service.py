@@ -34,6 +34,7 @@ from backend.repair_verification.models import (
 from backend.translator.models import (
     CandidateValidationStatus,
     TranslationResult,
+    TranslationStatus,
 )
 from backend.validation.models import ValidationCheckStatus, ValidationReport
 
@@ -89,16 +90,45 @@ class MigrationAssuranceService:
         *,
         migration_id: str,
         translation_result: TranslationResult,
-        source_execution: ExecutionResult,
-        target_execution: ExecutionResult,
-        validation_report: ValidationReport,
+        source_execution: ExecutionResult | None = None,
+        target_execution: ExecutionResult | None = None,
+        validation_report: ValidationReport | None = None,
         discrepancy_report: DiscrepancyReport | None = None,
         diagnosis_ai_result: DiagnosisAIResult | None = None,
         repair_verification_result: RepairVerificationResult | None = None,
         validation_report_after: ValidationReport | None = None,
     ) -> MigrationAssuranceReport:
         """Evaluate migration assurance from Phase 1–8 artifacts."""
+        from backend.core.consistency_validator import ArtifactStateConsistencyValidator
+
         start_time = datetime.now(timezone.utc)
+
+        # 0. Enforce Universal Lineage Boundary & SHA256 Hash Invariant
+        migration = self._repository.get_migration(migration_id)
+        if migration:
+            if hasattr(translation_result, "metadata") and translation_result.metadata:
+                t_mid = getattr(translation_result.metadata, "migration_id", None)
+                t_hash = getattr(translation_result.metadata, "source_sql_hash", None)
+                if t_mid and t_mid != migration_id:
+                    raise ValueError(f"ARTIFACT_LINEAGE_MISMATCH: Translation artifact migration_id '{t_mid}' != '{migration_id}'")
+                if t_hash and t_hash != migration.source_sql_hash:
+                    raise ValueError(f"ARTIFACT_LINEAGE_MISMATCH: Translation source_sql_hash '{t_hash}' != '{migration.source_sql_hash}'")
+
+            for exec_res in [source_execution, target_execution]:
+                if exec_res is not None:
+                    e_mid = getattr(exec_res, "migration_id", None)
+                    if e_mid and e_mid != migration_id:
+                        raise ValueError(f"ARTIFACT_LINEAGE_MISMATCH: Execution artifact migration_id '{e_mid}' != '{migration_id}'")
+
+            if validation_report is not None:
+                v_mid = getattr(validation_report, "migration_id", None)
+                if v_mid and v_mid != migration_id:
+                    raise ValueError(f"ARTIFACT_LINEAGE_MISMATCH: Validation artifact migration_id '{v_mid}' != '{migration_id}'")
+
+            if discrepancy_report is not None:
+                d_mid = getattr(discrepancy_report, "migration_id", None)
+                if d_mid and d_mid != migration_id:
+                    raise ValueError(f"ARTIFACT_LINEAGE_MISMATCH: Discrepancy artifact migration_id '{d_mid}' != '{migration_id}'")
 
         # 1. Build summaries
         translation_summary = self._summary_builder.build_translation_summary(translation_result)
@@ -138,15 +168,17 @@ class MigrationAssuranceService:
             remaining_discrepancy_count = repair_verification_result.remaining_discrepancy_count
         elif discrepancy_report is not None:
             remaining_discrepancy_count = discrepancy_report.discrepancy_count
+        elif validation_report is not None and validation_report.overall_status != "PASS":
+            remaining_discrepancy_count = sum(c.mismatch_count for c in validation_report.checks if c.status == ValidationCheckStatus.FAIL) or 1
         else:
             remaining_discrepancy_count = 0
 
         # 5. Build audit lineage
         lineage = self._lineage_builder.build(
             translation_id=translation_result.metadata.translation_id,
-            source_execution_id=source_execution.execution_id,
-            target_execution_id=target_execution.execution_id,
-            validation_id=validation_report.validation_id,
+            source_execution_id=source_execution.execution_id if source_execution else "",
+            target_execution_id=target_execution.execution_id if target_execution else "",
+            validation_id=validation_report.validation_id if validation_report else "",
             diagnosis_id=(
                 discrepancy_report.diagnosis_id if discrepancy_report else ""
             ),
@@ -163,12 +195,12 @@ class MigrationAssuranceService:
         )
 
         # 6. Extract gate inputs
-        source_succeeded = source_execution.status == ExecutionStatus.SUCCESS
-        target_succeeded = target_execution.status == ExecutionStatus.SUCCESS
+        source_succeeded = (source_execution.status == ExecutionStatus.SUCCESS) if source_execution else False
+        target_succeeded = (target_execution.status == ExecutionStatus.SUCCESS) if target_execution else False
         translation_valid = (
             translation_result.candidate_validation_status == CandidateValidationStatus.VALID_SYNTAX
         )
-        schema_valid = self._check_schema_valid(validation_report)
+        schema_valid = self._check_schema_valid(validation_report) if validation_report else False
         has_unresolved_critical = self._check_unresolved_critical(discrepancy_report, repair_verification_result)
 
         # Repair-specific gate inputs
@@ -217,10 +249,39 @@ class MigrationAssuranceService:
             gate_evaluation, verification_path
         )
 
-        # 10. Build limitations
+        # If translation or execution failed, provide explicit technical failure reason
+        if translation_result.status != TranslationStatus.SUCCESS:
+            final_status = MigrationFinalStatus.FAILED
+            err_msg = translation_result.metadata.error_message or translation_result.validation_summary or translation_result.status.value
+            decision_reason = f"Assurance evaluation could not be completed because translation failed: {err_msg}"
+        elif source_execution is None or target_execution is None or not (source_succeeded and target_succeeded):
+            final_status = MigrationFinalStatus.FAILED
+            decision_reason = "Assurance evaluation could not be completed because execution failed."
+
+        # 10. Validate State Consistency
+        ArtifactStateConsistencyValidator.validate_full_pipeline_state(
+            translation_status=translation_result.status.value,
+            target_sql=translation_result.response.target_sql if translation_result.response else None,
+            candidate_validation_status=(
+                translation_result.candidate_validation_status.value
+                if translation_result.candidate_validation_status else None
+            ),
+            target_execution_status=target_execution.status.value if target_execution else None,
+            validation_status=validation_report.overall_status if validation_report else None,
+            validation_ran=validation_report is not None,
+            repair_id=repair_proposal.repair_id if repair_proposal else None,
+            repair_status=repair_proposal.status.value if repair_proposal else None,
+            proposed_sql=repair_proposal.proposed_sql if repair_proposal else None,
+            verification_id=repair_verification_result.verification_id if repair_verification_result else None,
+            verification_status=repair_verification_result.status.value if repair_verification_result else None,
+            final_status=final_status.value,
+            evidence_score=score.evidence_score,
+        )
+
+        # 11. Build limitations
         limitations = self._build_limitations(score, repair_attempted, discrepancy_report)
 
-        # 11. Build report
+        # 12. Build report
         duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         report = MigrationAssuranceReport(
             migration_id=migration_id,
@@ -241,10 +302,10 @@ class MigrationAssuranceService:
             metadata={"duration_ms": round(duration_ms, 2)},
         )
 
-        # 12. Persist
+        # 13. Persist
         self._repository.save_assurance_report(report)
 
-        # 13. Update migration record
+        # 14. Update migration record
         migration = self._repository.get_migration(migration_id)
         if migration:
             migration.final_status = final_status
@@ -294,7 +355,7 @@ class MigrationAssuranceService:
         source_sql: str,
         source_dialect: str = "teradata",
         target_dialect: str = "bigquery",
-        dataset_id: str = "customer_risk",
+        dataset_id: str,
         profile: str = "dev",
         mock_mode: str | None = None,
     ) -> MigrationAssuranceReport:
@@ -415,8 +476,10 @@ class MigrationAssuranceService:
     # -----------------------------------------------------------------------
 
     @staticmethod
-    def _check_schema_valid(validation_report: ValidationReport) -> bool:
+    def _check_schema_valid(validation_report: ValidationReport | None) -> bool:
         """Check if SchemaValidator status is not FAIL."""
+        if validation_report is None:
+            return False
         for check in validation_report.checks:
             if check.check_name == "SchemaValidator":
                 return check.status != ValidationCheckStatus.FAIL
@@ -454,7 +517,7 @@ class MigrationAssuranceService:
     ) -> list[str]:
         """Build list of assurance limitations for the report."""
         limitations: list[str] = []
-        if score.evidence_coverage < 100.0:
+        if score.evidence_coverage is not None and score.evidence_coverage < 100.0:
             skipped = [
                 c.name for c in score.components
                 if c.status.value == "NOT_APPLICABLE"

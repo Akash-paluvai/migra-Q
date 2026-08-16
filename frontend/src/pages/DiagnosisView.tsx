@@ -1,6 +1,6 @@
 import React from 'react';
 import type { MigrationAssuranceReport } from '../types/migration';
-import { Cpu, Search, HelpCircle, ShieldCheck } from 'lucide-react';
+import { Cpu, Search, HelpCircle, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 interface DiagnosisViewProps {
   report: MigrationAssuranceReport;
@@ -8,6 +8,25 @@ interface DiagnosisViewProps {
 
 export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
   const summary = report.diagnosis_summary;
+  const discSummary = report.discrepancy_summary;
+
+  if (!summary && (!discSummary || discSummary.discrepancy_count === 0)) {
+    return (
+      <div>
+        <div className="card-panel">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#15803D' }}>
+            <CheckCircle2 size={24} />
+            <div>
+              <h3>ZERO DISCREPANCIES DETECTED</h3>
+              <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>
+                Source and target query executions yielded 100% identical outputs and schema structures. No AI diagnosis required.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -17,11 +36,11 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
           <div>
             <h3>AI-GROUNDED DISCREPANCY DIAGNOSIS</h3>
             <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>
-              Diagnosis ID: {summary?.diagnosis_id || 'diag-ai-001'} | Target Discrepancy: {summary?.discrepancy_id || 'D-001'}
+              Diagnosis ID: {summary?.diagnosis_id || 'N/A'} | Target Discrepancy: {summary?.discrepancy_id || 'D-001'}
             </p>
           </div>
           <div style={{ backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, border: '1px solid #BFDBFE' }}>
-            Diagnosis Confidence: {((summary?.diagnosis_confidence || 0.95) * 100).toFixed(0)}%
+            Diagnosis Confidence: {summary?.diagnosis_confidence ? `${(summary.diagnosis_confidence * 100).toFixed(0)}%` : 'N/A'}
           </div>
         </div>
       </div>
@@ -35,10 +54,7 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
             <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Observed Behavior Change</h4>
           </div>
           <div style={{ fontSize: '14px', color: '#0F172A', fontWeight: 500, lineHeight: 1.6 }}>
-            {summary?.observed_change || 'Target comparison operator changed from > to >=.'}
-          </div>
-          <div style={{ fontSize: '12px', color: '#64748B', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
-            Evidence IDs: [E-001, E-002, E-003, E-004]
+            {summary?.observed_change || 'Behavioral mismatch detected between source and target query outputs.'}
           </div>
         </div>
 
@@ -49,7 +65,7 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
             <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Likely Mechanism</h4>
           </div>
           <div style={{ fontSize: '14px', color: '#0F172A', fontWeight: 500, lineHeight: 1.6 }}>
-            Boundary comparison became inclusive (`t.amount &gt;= 500.00`), causing boundary boundary values ($500.00) to shift classification.
+            {summary?.observed_change || 'Mechanism details not available in Phase 9 summary.'}
           </div>
         </div>
 
@@ -60,7 +76,7 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
             <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Possible Cause</h4>
           </div>
           <div style={{ fontSize: '14px', color: '#0F172A', fontWeight: 500, lineHeight: 1.6 }}>
-            LLM translation model introduced inclusive relational operator during syntax generation.
+            {summary?.status ? `Diagnosis status: ${summary.status}` : 'Cause details require full AI diagnosis artifact.'}
           </div>
         </div>
 
@@ -71,7 +87,7 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
             <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#B45309' }}>Uncertainty Statement</h4>
           </div>
           <div style={{ fontSize: '14px', color: '#475569', lineHeight: 1.6 }}>
-            Execution evidence identifies behavioral change with 100% certainty, but cannot determine model prompt selection intent.
+            Uncertainty assessment requires full AI diagnosis artifact. Summary provides observed change and confidence only.
           </div>
         </div>
       </div>

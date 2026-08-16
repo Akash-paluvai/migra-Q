@@ -10,6 +10,17 @@ export const ValidationView: React.FC<ValidationViewProps> = ({ report }) => {
   const summary = report.validation_summary;
   const affectedCount = report.discrepancy_summary?.total_affected_rows || 0;
 
+  if (!summary) {
+    return (
+      <div className="card-panel" style={{ padding: '32px', textAlign: 'center' }}>
+        <h3 style={{ color: '#64748B', marginBottom: '8px' }}>Validation Not Run</h3>
+        <p style={{ color: '#94A3B8', fontSize: '14px', maxWidth: '500px', margin: '0 auto' }}>
+          Phase 4 Multi-Layer Semantic Validation was NOT RUN because upstream translation or execution did not complete successfully.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="card-panel">
@@ -17,10 +28,10 @@ export const ValidationView: React.FC<ValidationViewProps> = ({ report }) => {
           <div>
             <h3>MULTI-LAYER SEMANTIC VALIDATION</h3>
             <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>
-              Validation ID: {summary?.validation_id || 'N/A'}
+              Validation ID: {summary.validation_id || 'N/A'}
             </p>
           </div>
-          <StatusBadge status={summary?.overall_status || 'UNKNOWN'} />
+          <StatusBadge status={summary.overall_status || 'UNKNOWN'} />
         </div>
 
         {/* Validation Checklist */}
@@ -35,7 +46,7 @@ export const ValidationView: React.FC<ValidationViewProps> = ({ report }) => {
               </tr>
             </thead>
             <tbody>
-              {summary?.checks.map((check) => (
+              {summary.checks.map((check) => (
                 <tr key={check.check_name}>
                   <td style={{ fontWeight: 600 }}>{check.check_name}</td>
                   <td>

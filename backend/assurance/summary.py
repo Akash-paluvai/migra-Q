@@ -28,6 +28,11 @@ class SummaryBuilder:
 
     def build_translation_summary(self, result: TranslationResult) -> TranslationSummary:
         """Build a TranslationSummary from Phase 6 TranslationResult."""
+        candidate_sql = (
+            result.response.target_sql
+            if result.response and result.response.target_sql
+            else ""
+        )
         return TranslationSummary(
             translation_id=result.metadata.translation_id,
             source_dialect=result.metadata.source_dialect,
@@ -38,6 +43,7 @@ class SummaryBuilder:
                 if result.candidate_validation_status else None
             ),
             source_sql_hash=result.metadata.source_sql_hash,
+            candidate_sql=candidate_sql,
             provider=result.metadata.provider,
             model=result.metadata.model,
             created_at=result.metadata.created_at,
@@ -45,10 +51,12 @@ class SummaryBuilder:
 
     def build_execution_summary(
         self,
-        source: ExecutionResult,
-        target: ExecutionResult,
-    ) -> ExecutionSummary:
+        source: ExecutionResult | None,
+        target: ExecutionResult | None,
+    ) -> ExecutionSummary | None:
         """Build an ExecutionSummary from Phase 3 source and target ExecutionResults."""
+        if source is None or target is None:
+            return None
         return ExecutionSummary(
             source_execution_id=source.execution_id,
             target_execution_id=target.execution_id,
@@ -60,8 +68,10 @@ class SummaryBuilder:
             dataset_hash=source.dataset_hash,
         )
 
-    def build_validation_summary(self, report: ValidationReport) -> ValidationSummary:
+    def build_validation_summary(self, report: ValidationReport | None) -> ValidationSummary | None:
         """Build a ValidationSummary from Phase 4 ValidationReport."""
+        if report is None:
+            return None
         checks = [
             ValidationCheckSummary(
                 check_name=c.check_name,
@@ -119,6 +129,8 @@ class SummaryBuilder:
             status=proposal.status.value,
             repair_confidence=proposal.repair_confidence,
             changed_region=proposal.changed_region,
+            original_sql=proposal.original_sql or "",
+            proposed_sql=proposal.proposed_sql or "",
         )
 
     def build_verification_summary(

@@ -39,6 +39,7 @@ class ExecutionRequest(BaseModel):
 
 class ExecutionResult(BaseModel):
     execution_id: str
+    migration_id: str | None = None
     query_hash: str
     dataset_id: str
     dataset_hash: str

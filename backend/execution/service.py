@@ -3,13 +3,15 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy.orm import Session
 
+from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.db.database import SessionLocal, check_database_health
 from backend.db.models import ExecutionRecord
-from backend.execution.models import ExecutionRequest, ExecutionResult
+from backend.execution.models import ExecutionMode, ExecutionRequest, ExecutionResult, ExecutionStatus
 from backend.execution.sandbox import SandboxExecutor
 
 logger = get_logger(__name__)
@@ -133,6 +135,15 @@ class ExecutionService:
         """Persist execution audit record to PostgreSQL if reachable."""
         if not check_database_health():
             return
+        import decimal
+
+        def _json_default(obj: Any) -> Any:
+            if isinstance(obj, decimal.Decimal):
+                return float(obj)
+            if hasattr(obj, "isoformat"):
+                return obj.isoformat()
+            return str(obj)
+
         db: Session = SessionLocal()
         try:
             meta_json = json.dumps(
@@ -140,7 +151,8 @@ class ExecutionService:
                     "columns": [c.model_dump() for c in result.columns],
                     "sample_data": result.sample_data,
                     "sample_is_ordered": result.sample_is_ordered,
-                }
+                },
+                default=_json_default,
             )
             rec = ExecutionRecord(
                 execution_id=result.execution_id,
@@ -164,6 +176,11 @@ class ExecutionService:
             db.commit()
         except Exception as exc:
             db.rollback()
-            logger.warning("Failed to persist execution record to DB: %s", exc)
+            logger.error("Failed to persist execution record to DB: %s", exc)
+            if settings.PERSISTENCE_MODE == "postgres":
+                result.status = ExecutionStatus.EXECUTION_ERROR
+                result.error_code = "PERSISTENCE_FAILED"
+                result.error_message = f"Execution persistence failed: {exc}"
         finally:
             db.close()
+

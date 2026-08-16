@@ -38,12 +38,12 @@ export const NewMigrationPage: React.FC = () => {
   const navigate = useNavigate();
   const [datasets, setDatasets] = useState<DatasetSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDatasetId, setSelectedDatasetId] = useState('customer_risk');
+  const [selectedDatasetId, setSelectedDatasetId] = useState('');
   const [selectedSchema, setSelectedSchema] = useState<DatasetTableSummary[]>([]);
   
   const [sourceDialect, setSourceDialect] = useState('teradata');
   const [targetDialect, setTargetDialect] = useState('bigquery');
-  const [sql, setSql] = useState(FLAGSHIP_SQL);
+  const [sql, setSql] = useState('');
   
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -67,9 +67,6 @@ export const NewMigrationPage: React.FC = () => {
     try {
       const data = await listDatasets();
       setDatasets(data);
-      if (data.length > 0 && !data.some((d) => d.dataset_id === selectedDatasetId)) {
-        setSelectedDatasetId(data[0].dataset_id);
-      }
     } catch {
       // Fallback
     }
@@ -95,6 +92,10 @@ export const NewMigrationPage: React.FC = () => {
     e.preventDefault();
     if (!sql.trim()) {
       setError('Please provide source SQL logic.');
+      return;
+    }
+    if (!selectedDatasetId) {
+      setError('Please select a dataset.');
       return;
     }
 
@@ -128,7 +129,7 @@ export const NewMigrationPage: React.FC = () => {
       <form onSubmit={handleSubmit}>
         {/* Section 1: Dynamic Dataset Workbench */}
         <div className="card-panel" style={{ marginBottom: '24px' }}>
-          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContents: 'space-between' }}>
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Database size={18} color="#10B981" /> 1. SELECT DATA ENVIRONMENT
             </h3>
@@ -207,7 +208,7 @@ export const NewMigrationPage: React.FC = () => {
                     {isSelected && <CheckCircle2 size={16} color="#10B981" />}
                   </div>
                   <p style={{ fontSize: '12px', color: '#64748B', margin: '4px 0 8px 0', lineHeight: 1.3 }}>{d.description}</p>
-                  <div style={{ display: 'flex', itemsCenter: 'center', gap: '8px', fontSize: '11px', fontFamily: 'var(--font-mono)', color: '#475569' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontFamily: 'var(--font-mono)', color: '#475569' }}>
                     <span>{d.row_count_total.toLocaleString()} rows</span>
                     <span>•</span>
                     <span>{d.table_count} tables</span>
@@ -327,7 +328,7 @@ export const NewMigrationPage: React.FC = () => {
               lineHeight: 1.5,
               resize: 'vertical',
             }}
-            placeholder="Paste your source query logic..."
+            placeholder="Paste or enter source SQL...\n\nOr click 'Load Flagship Benchmark Example' above to try the built-in demo."
           />
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '20px' }}>

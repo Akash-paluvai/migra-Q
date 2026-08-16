@@ -39,7 +39,14 @@ export const AssuranceView: React.FC<AssuranceViewProps> = ({ report }) => {
             </span>
           </div>
           <div style={{ fontSize: '32px', fontWeight: 800, color: '#0F172A' }}>
-            {score.evidence_score.toFixed(1)} <span style={{ fontSize: '18px', fontWeight: 500, color: '#64748B' }}>/ 100</span>
+            {score.evidence_score !== null && score.evidence_score !== undefined ? (
+              <>
+                {score.evidence_score.toFixed(1)}{' '}
+                <span style={{ fontSize: '18px', fontWeight: 500, color: '#64748B' }}>/ 100</span>
+              </>
+            ) : (
+              'N/A'
+            )}
           </div>
           <div style={{ fontSize: '12px', color: '#64748B', marginTop: '6px' }}>
             How well the evaluated validation dimensions performed.
@@ -55,7 +62,9 @@ export const AssuranceView: React.FC<AssuranceViewProps> = ({ report }) => {
             </span>
           </div>
           <div style={{ fontSize: '32px', fontWeight: 800, color: '#0F172A' }}>
-            {score.evidence_coverage.toFixed(0)}%
+            {score.evidence_coverage !== null && score.evidence_coverage !== undefined
+              ? `${score.evidence_coverage.toFixed(0)}%`
+              : 'N/A'}
           </div>
           <div style={{ fontSize: '12px', color: '#64748B', marginTop: '6px' }}>
             How much of the configured validation scope was actually evaluated.

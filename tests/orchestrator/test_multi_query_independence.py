@@ -14,10 +14,10 @@ def test_four_queries_produce_distinct_migration_artifacts():
     sql_c = "SELECT COUNT(*) AS total_tx FROM transactions"
     sql_d = "SELECT customer_id, SUM(amount) AS total_amt FROM transactions GROUP BY customer_id"
 
-    res_a = orchestrator.run(PipelineRunRequest(source_sql=sql_a, dataset_id="customer_risk"))
-    res_b = orchestrator.run(PipelineRunRequest(source_sql=sql_b, dataset_id="customer_risk"))
-    res_c = orchestrator.run(PipelineRunRequest(source_sql=sql_c, dataset_id="customer_risk"))
-    res_d = orchestrator.run(PipelineRunRequest(source_sql=sql_d, dataset_id="customer_risk"))
+    res_a = orchestrator.run(PipelineRunRequest(source_sql=sql_a, source_dialect="teradata", target_dialect="bigquery", dataset_id="customer_risk"))
+    res_b = orchestrator.run(PipelineRunRequest(source_sql=sql_b, source_dialect="teradata", target_dialect="bigquery", dataset_id="customer_risk"))
+    res_c = orchestrator.run(PipelineRunRequest(source_sql=sql_c, source_dialect="teradata", target_dialect="bigquery", dataset_id="customer_risk"))
+    res_d = orchestrator.run(PipelineRunRequest(source_sql=sql_d, source_dialect="teradata", target_dialect="bigquery", dataset_id="customer_risk"))
 
     # 1. Distinct migration IDs
     ids = {res_a.migration_id, res_b.migration_id, res_c.migration_id, res_d.migration_id}

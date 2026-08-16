@@ -2,7 +2,7 @@ import React from 'react';
 import type { ScoreComponent } from '../types/migration';
 
 interface CoverageChecklistProps {
-  coverage: number;
+  coverage: number | null;
   components: ScoreComponent[];
 }
 
@@ -11,12 +11,13 @@ export const CoverageChecklist: React.FC<CoverageChecklistProps> = ({
   components,
 }) => {
   const skippedComponents = components.filter((c) => c.status === 'NOT_APPLICABLE');
+  const covText = coverage !== null && coverage !== undefined ? `${coverage.toFixed(0)}% evaluated` : 'Scope not evaluated';
 
   return (
     <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px 20px', marginTop: '16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
         <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
-          Evidence Coverage Breakdown ({coverage.toFixed(0)}% evaluated):
+          Evidence Coverage Breakdown ({covText}):
         </div>
         <div style={{ fontSize: '12px', color: '#64748B' }}>
           Coverage reflects validation dimensions actually evaluated.

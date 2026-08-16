@@ -116,6 +116,7 @@ class DiscrepancyReport(BaseModel):
     """Complete aggregated discrepancy report for a validation."""
 
     diagnosis_id: str
+    migration_id: str | None = None
     validation_id: str
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     classifier_version: str = CLASSIFIER_VERSION

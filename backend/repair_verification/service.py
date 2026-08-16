@@ -105,7 +105,7 @@ class RepairVerificationService:
                     validation_id=f"val-default-{uuid.uuid4().hex[:8]}",
                     source_execution_id="exec-src-default",
                     target_execution_id="exec-tgt-default",
-                    dataset_id="customer_risk",
+                    dataset_id=None,
                 )
 
         val_id_before = validation_report_before.validation_id
@@ -127,7 +127,7 @@ class RepairVerificationService:
                 source_execution = ExecutionResult(
                     execution_id=validation_report_before.source_execution_id,
                     query_hash="hash-src-default",
-                    dataset_id="customer_risk",
+                    dataset_id="unresolved",
                     dataset_hash="ds-hash-default",
                     execution_mode="SOURCE",  # type: ignore[arg-type]
                     status=ExecutionStatus.SUCCESS,  # type: ignore[arg-type]
@@ -139,7 +139,7 @@ class RepairVerificationService:
                 target_execution_before = ExecutionResult(
                     execution_id=validation_report_before.target_execution_id,
                     query_hash="hash-tgt-default",
-                    dataset_id="customer_risk",
+                    dataset_id="unresolved",
                     dataset_hash="ds-hash-default",
                     execution_mode="TARGET",  # type: ignore[arg-type]
                     status=ExecutionStatus.SUCCESS,  # type: ignore[arg-type]

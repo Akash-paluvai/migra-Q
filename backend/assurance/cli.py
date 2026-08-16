@@ -64,11 +64,17 @@ def format_report(report: MigrationAssuranceReport) -> str:
     lines.append("")
     lines.append("")
     lines.append("Assurance score:")
-    lines.append(f"{report.score.evidence_score:.1f} / 100")
+    if report.score.evidence_score is not None:
+        lines.append(f"{report.score.evidence_score:.1f} / 100")
+    else:
+        lines.append("N/A")
     lines.append("")
     lines.append("")
     lines.append("Evidence coverage:")
-    lines.append(f"{report.score.evidence_coverage:.0f}%")
+    if report.score.evidence_coverage is not None:
+        lines.append(f"{report.score.evidence_coverage:.0f}%")
+    else:
+        lines.append("N/A")
     skipped_names = [c.name for c in report.score.components if c.status.value == "NOT_APPLICABLE"]
     if skipped_names:
         skipped_str = ", ".join(skipped_names)

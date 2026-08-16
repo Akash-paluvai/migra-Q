@@ -44,6 +44,10 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;"""
         "target_sql": target_sql,
         "source_dialect": "teradata",
         "target_dialect": "bigquery",
+        "source_expression": "t.amount > 500",
+        "target_expression": "t.amount >= 500",
+        "affected_row_count": 10512,
+        "affected_percentage": 10.51,
         "representative_examples": [{"customer_id": "C18291", "refund": 500.0}],
         "mock_mode": "MOCK_BOUNDARY_REPAIR",
     }

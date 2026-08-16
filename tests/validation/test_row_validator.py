@@ -108,6 +108,19 @@ def test_row_multiple_mismatch_columns():
 
 
 def test_row_missing_comparison_key_returns_error():
+    cols = []
+    sample = []
+    ctx = ValidationContext(
+        source_execution=make_exec_sample(cols, sample),
+        target_execution=make_exec_sample(cols, sample),
+        config=ValidationConfig(comparison_key=[]),
+    )
+
+    res = RowValidator().validate(ctx)
+    assert res.status == ValidationCheckStatus.ERROR
+
+
+def test_row_inferred_comparison_key_from_schema():
     cols = [("customer_id", "VARCHAR")]
     sample = [{"customer_id": "C1"}]
     ctx = ValidationContext(
@@ -117,7 +130,7 @@ def test_row_missing_comparison_key_returns_error():
     )
 
     res = RowValidator().validate(ctx)
-    assert res.status == ValidationCheckStatus.ERROR
+    assert res.status == ValidationCheckStatus.PASS
 
 
 def test_row_invalid_key_returns_error():

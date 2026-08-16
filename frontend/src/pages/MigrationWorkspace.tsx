@@ -110,7 +110,7 @@ export const MigrationWorkspace: React.FC = () => {
       </div>
 
       {/* Horizontal Workflow Stepper */}
-      <WorkflowStepper currentState={record.current_state} />
+      <WorkflowStepper currentState={record.current_state} report={report} />
 
       {/* Secondary Tab Navigation */}
       <div
@@ -155,7 +155,7 @@ export const MigrationWorkspace: React.FC = () => {
             <MetricCard
               label="Initial Validation"
               value={initialValStatus}
-              status={initialValStatus === 'PASS' ? 'success' : 'fail'}
+              status={initialValStatus === 'PASS' ? 'success' : initialValStatus === 'FAIL' ? 'fail' : 'neutral'}
             />
             <MetricCard
               label="Discrepancies"
@@ -175,12 +175,12 @@ export const MigrationWorkspace: React.FC = () => {
             />
             <MetricCard
               label="Assurance Score"
-              value={`${report.score.evidence_score.toFixed(1)} / 100`}
-              status="success"
+              value={report.score && report.score.evidence_score !== null && report.score.evidence_score !== undefined ? `${report.score.evidence_score.toFixed(1)} / 100` : 'N/A'}
+              status={report.score && report.score.evidence_score !== null && report.score.evidence_score !== undefined ? 'success' : 'neutral'}
             />
             <MetricCard
               label="Evidence Coverage"
-              value={`${report.score.evidence_coverage.toFixed(0)}%`}
+              value={report.score && report.score.evidence_coverage !== null && report.score.evidence_coverage !== undefined ? `${report.score.evidence_coverage.toFixed(0)}%` : 'N/A'}
               subtitle="Evaluated scope"
               status="neutral"
             />
