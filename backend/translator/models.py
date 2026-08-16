@@ -80,6 +80,7 @@ class TranslationContext(BaseModel):
     business_rules: list[dict[str, Any]] = Field(default_factory=list)
     case_expressions: list[dict[str, Any]] = Field(default_factory=list)
     null_sensitive_expressions: list[dict[str, Any]] = Field(default_factory=list)
+    dataset_id: str | None = None
     schema_context: SchemaContext | None = Field(default=None, alias="schema")
     context_hash: str = ""
 

@@ -60,6 +60,7 @@ def build_translation_context(request: TranslationRequest) -> TranslationContext
         business_rules=rules_dict,
         case_expressions=cases_dict,
         null_sensitive_expressions=nulls_dict,
+        dataset_id=request.dataset_id,
         schema=request.schema_context,
         context_hash=context_hash,
     )

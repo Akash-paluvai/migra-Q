@@ -156,11 +156,7 @@ ORDER BY c.customer_id;""",
                     target_sql = "SELECT customer_id FROM transactions;"
                 else:
                     target_sql = "SELECT 'data' AS message FROM transactions;"
-            elif any(table in context.source_sql for table in ["enterprise_metrics", "accounts", "event_logs", "product_catalog", "sales_region"]):
-                target_sql = context.source_sql
-            elif "SELECT" in context.source_sql.upper() and "customer_segment" not in context.source_sql:
-                target_sql = context.source_sql
-            else:
+            elif "customer_segment" in context.source_sql and "customer_risk" in (getattr(context, "dataset_id", "") or ""):
                 target_sql = """SELECT
   c.customer_id,
   c.customer_segment,
@@ -170,6 +166,17 @@ FROM transactions t
 JOIN customers c ON t.customer_id = c.customer_id
 WHERE t.status = 'COMPLETED'
 GROUP BY c.customer_id, c.customer_segment, t.amount;"""
+            else:
+                try:
+                    import sqlglot
+                    transpiled = sqlglot.transpile(
+                        context.source_sql,
+                        read=context.source_dialect,
+                        write=context.target_dialect,
+                    )
+                    target_sql = transpiled[0] if transpiled else context.source_sql
+                except Exception:
+                    target_sql = context.source_sql
 
             payload = {
                 "target_sql": target_sql,
