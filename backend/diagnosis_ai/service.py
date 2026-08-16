@@ -114,10 +114,10 @@ class DiagnosisAIService:
             provider = MockDiagnosisProvider(mode=mode)
             p_name = "mock"
             p_model = mode
-        elif provider_type == "openai":
+        elif provider_type in ("openai", "openrouter", "groq"):
             provider = OpenAIDiagnosisProvider()
-            p_name = "openai"
-            p_model = settings.LLM_MODEL or "gpt-4o"
+            p_name = provider_type
+            p_model = settings.LLM_MODEL or "llama3-70b-8192"
         else:
             provider = MockDiagnosisProvider(mode="MOCK_BOUNDARY_REPAIR")
             p_name = "mock"

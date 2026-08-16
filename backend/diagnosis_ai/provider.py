@@ -320,35 +320,118 @@ class OpenAIDiagnosisProvider(AIDiagnosisProvider):
             "Content-Type": "application/json",
             "HTTP-Referer": "http://localhost:8000",
             "X-Title": "MIGRA-Q",
+            "User-Agent": "MIGRA-Q/1.0",
         }
         body = {
             "model": self.model_name,
             "temperature": settings.LLM_TEMPERATURE,
+            "max_tokens": settings.LLM_MAX_OUTPUT_TOKENS,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
         }
 
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(body).encode("utf-8"),
-            headers=headers,
-            method="POST",
-        )
+        # Dynamic Response Format Selection
+        if "gpt-oss" in self.model_name or "gpt-4" in self.model_name:
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "diagnosis_response",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "observed_change": {"type": "string"},
+                            "likely_mechanism": {"type": "string"},
+                            "possible_cause": {"type": "string"},
+                            "uncertainty": {"type": "string"},
+                            "diagnosis_claims": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "text": {"type": "string"},
+                                        "evidence_refs": {"type": "array", "items": {"type": "string"}}
+                                    },
+                                    "required": ["text", "evidence_refs"],
+                                    "additionalProperties": False
+                                }
+                            },
+                            "proposed_sql": {"type": ["string", "null"]},
+                            "changed_region": {"type": ["string", "null"]},
+                            "changes": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "location": {"type": "string"},
+                                        "before_expression": {"type": "string"},
+                                        "after_expression": {"type": "string"},
+                                        "change_type": {"type": "string"}
+                                    },
+                                    "required": ["location", "before_expression", "after_expression", "change_type"],
+                                    "additionalProperties": False
+                                }
+                            },
+                            "repair_rationale": {"type": ["string", "null"]},
+                            "expected_effect": {"type": ["string", "null"]},
+                            "repair_claims": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "text": {"type": "string"},
+                                        "evidence_refs": {"type": "array", "items": {"type": "string"}}
+                                    },
+                                    "required": ["text", "evidence_refs"],
+                                    "additionalProperties": False
+                                }
+                            }
+                        },
+                        "required": [
+                            "observed_change", "likely_mechanism", "possible_cause", "uncertainty", 
+                            "diagnosis_claims", "proposed_sql", "changed_region", "changes", 
+                            "repair_rationale", "expected_effect", "repair_claims"
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            }
+        else:
+            body["response_format"] = {"type": "json_object"}
 
-        try:
-            with urllib.request.urlopen(req, timeout=settings.LLM_TIMEOUT_SECONDS) as res:
-                resp_data = json.loads(res.read().decode("utf-8"))
-                raw_json_str = resp_data["choices"][0]["message"]["content"] or ""
-                usage_data = resp_data.get("usage", {})
-                input_tokens = usage_data.get("prompt_tokens", 0)
-                output_tokens = usage_data.get("completion_tokens", 0)
-                total_tokens = usage_data.get("total_tokens", 0)
-        except urllib.error.HTTPError as http_err:
-            raise RuntimeError(f"LLM_DIAGNOSIS_HTTP_ERROR: HTTP {http_err.code}") from http_err
-        except Exception as exc:
-            raise RuntimeError(f"LLM_DIAGNOSIS_HTTP_ERROR: {exc}") from exc
+        max_retries = settings.LLM_MAX_RETRIES
+        retry_delay = 2.0  # start with 2 seconds
+
+        for attempt in range(1, max_retries + 1):
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(body).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=settings.LLM_TIMEOUT_SECONDS) as res:
+                    resp_data = json.loads(res.read().decode("utf-8"))
+                    raw_json_str = resp_data["choices"][0]["message"]["content"] or ""
+                    usage_data = resp_data.get("usage", {})
+                    input_tokens = usage_data.get("prompt_tokens", 0)
+                    output_tokens = usage_data.get("completion_tokens", 0)
+                    total_tokens = usage_data.get("total_tokens", 0)
+                    break  # Success, exit retry loop
+            except urllib.error.HTTPError as http_err:
+                if http_err.code == 429 and attempt < max_retries:
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                raise RuntimeError(f"LLM_DIAGNOSIS_HTTP_ERROR: HTTP {http_err.code}") from http_err
+            except Exception as exc:
+                if attempt < max_retries:
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                raise RuntimeError(f"LLM_DIAGNOSIS_HTTP_ERROR: {exc}") from exc
 
         duration_ms = (time.perf_counter() - start_time) * 1000.0
 

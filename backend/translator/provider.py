@@ -25,13 +25,17 @@ class RawProviderResponse:
 def _clean_json_response(raw_text: str) -> str:
     """Strip markdown codeblock wrappers if LLM returned ```json ... ```."""
     text = raw_text.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
+    if "```json" in text:
+        text = text.split("```json")[1].split("```")[0].strip()
+    elif "```" in text:
+        text = text.split("```")[1].split("```")[0].strip()
+        
+    if not text.startswith("{"):
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            text = text[start:end+1]
+            
     return text
 
 
@@ -240,6 +244,7 @@ class OpenAIProvider(LLMProvider):
             "Content-Type": "application/json",
             "HTTP-Referer": "http://localhost:8000",
             "X-Title": "MIGRA-Q",
+            "User-Agent": "MIGRA-Q/1.0",
         }
         body = {
             "model": self.model,
@@ -251,33 +256,79 @@ class OpenAIProvider(LLMProvider):
             ],
         }
 
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(body).encode("utf-8"),
-            headers=headers,
-            method="POST",
-        )
+        # Dynamic Response Format Selection
+        if "gpt-oss" in self.model or "gpt-4" in self.model:
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "translation_response",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "target_sql": {"type": "string"},
+                            "assumptions": {"type": "array", "items": {"type": "string"}},
+                            "potential_risks": {"type": "array", "items": {"type": "string"}},
+                            "translated_rules": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "source_path": {"type": "string"},
+                                        "source_expression": {"type": "string"},
+                                        "target_expression": {"type": "string"},
+                                        "rule_type": {"type": "string"}
+                                    },
+                                    "required": ["source_path", "source_expression", "target_expression", "rule_type"],
+                                    "additionalProperties": False
+                                }
+                            }
+                        },
+                        "required": ["target_sql", "assumptions", "potential_risks", "translated_rules"],
+                        "additionalProperties": False
+                    }
+                }
+            }
+        else:
+            body["response_format"] = {"type": "json_object"}
 
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as res:
-                resp_data = json.loads(res.read().decode("utf-8"))
-                raw_text = resp_data["choices"][0]["message"]["content"] or ""
-                raw_json = _clean_json_response(raw_text)
-                usage_data = resp_data.get("usage", {})
-                input_tokens = usage_data.get("prompt_tokens")
-                output_tokens = usage_data.get("completion_tokens")
-                total_tokens = usage_data.get("total_tokens")
-        except urllib.error.HTTPError as http_err:
-            if http_err.code in (401, 403):
-                raise PermissionError(f"LLM_AUTH_ERROR: HTTP {http_err.code} Authentication Failed") from http_err
-            elif http_err.code == 429:
-                raise RuntimeError("LLM_RATE_LIMIT: HTTP 429 Rate Limit Exceeded") from http_err
-            else:
-                raise RuntimeError(f"LLM_PROVIDER_ERROR: HTTP {http_err.code}") from http_err
-        except TimeoutError as time_err:
-            raise TimeoutError(f"LLM_TIMEOUT: {time_err}") from time_err
-        except Exception as exc:
-            raise RuntimeError(f"LLM_HTTP_ERROR: {exc}") from exc
+        max_retries = settings.LLM_MAX_RETRIES
+        retry_delay = 2.0  # start with 2 seconds
+
+        for attempt in range(1, max_retries + 1):
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(body).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=settings.LLM_TIMEOUT_SECONDS) as res:
+                    resp_data = json.loads(res.read().decode("utf-8"))
+                    raw_text = resp_data["choices"][0]["message"]["content"] or ""
+                    raw_json = _clean_json_response(raw_text)
+                    usage_data = resp_data.get("usage", {})
+                    input_tokens = usage_data.get("prompt_tokens", 0)
+                    output_tokens = usage_data.get("completion_tokens", 0)
+                    total_tokens = usage_data.get("total_tokens", 0)
+                    break  # Success, exit retry loop
+            except urllib.error.HTTPError as http_err:
+                if http_err.code in (401, 403):
+                    raise PermissionError(f"LLM_AUTH_ERROR: HTTP {http_err.code} Authentication Failed") from http_err
+                elif http_err.code == 429 and attempt < max_retries:
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                elif http_err.code == 429:
+                    raise RuntimeError("LLM_RATE_LIMIT: HTTP 429 Rate Limit Exceeded") from http_err
+                else:
+                    raise RuntimeError(f"LLM_PROVIDER_ERROR: HTTP {http_err.code}") from http_err
+            except Exception as exc:
+                if attempt < max_retries:
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                raise RuntimeError(f"LLM_PROVIDER_ERROR: {exc}") from exc
 
         duration_ms = (time.perf_counter() - start_time) * 1000.0
         return RawProviderResponse(
@@ -303,8 +354,8 @@ def get_llm_provider(
     if p_name == "mock":
         return MockLLMProvider(mode="MOCK_GOOD")
 
-    if p_name in ("openai", "openrouter"):
+    if p_name in ("openai", "openrouter", "groq"):
         settings.validate_llm_config()
         return OpenAIProvider()
 
-    raise ValueError(f"Unsupported LLM provider: '{p_name}'. Allowed: 'openai', 'openrouter', 'mock'.")
+    raise ValueError(f"Unsupported LLM provider: '{p_name}'. Allowed: 'openai', 'openrouter', 'groq', 'mock'.")
