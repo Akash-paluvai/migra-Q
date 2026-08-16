@@ -227,6 +227,16 @@ class DiagnosisAIService:
                 if not scope_valid:
                     repair_status = RepairStatus.FAILED
 
+            # D. Effective Change Check (Must not be identical to candidate SQL)
+            if repair_status == RepairStatus.PROPOSED:
+                diff_valid, diff_msg = RepairProposalValidator.validate_effective_change(
+                    original_sql=target_sql,
+                    proposed_sql=proposed_sql,
+                )
+                if not diff_valid:
+                    repair_status = RepairStatus.FAILED
+                    scope_valid = False
+
         # 7. Confidence Score Calculations
         diag_conf = compute_diagnosis_confidence(evidence_pack)
         if diag_status == DiagnosisStatus.INSUFFICIENT_EVIDENCE:

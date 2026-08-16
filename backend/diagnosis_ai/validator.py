@@ -101,3 +101,22 @@ class RepairProposalValidator:
             )
 
         return True, "REPAIR_CONTRACT_CHECK passed: Target contract preserved."
+
+    @classmethod
+    def validate_effective_change(
+        cls,
+        original_sql: str,
+        proposed_sql: str,
+    ) -> tuple[bool, str]:
+        """Verify proposed repair SQL is substantively different from original candidate SQL."""
+        from backend.analyzer.normalizer import normalize_sql
+
+        norm_orig = normalize_sql(original_sql).strip()
+        norm_prop = normalize_sql(proposed_sql).strip()
+
+        if norm_orig == norm_prop:
+            return (
+                False,
+                "REPAIR_PROPOSAL_IDENTICAL_TO_CANDIDATE: Proposed repair SQL is identical to candidate SQL with no effective change.",
+            )
+        return True, "Proposed repair SQL contains substantive modifications."

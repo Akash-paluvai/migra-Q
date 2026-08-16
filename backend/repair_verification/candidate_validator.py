@@ -42,7 +42,8 @@ class CandidateRepairValidator:
             return False, "MISSING_ORIGINAL_TARGET_SQL", {}
 
         # 4. Unchanged repair check (proposed SQL must not be identical to original target SQL)
-        if orig_sql.rstrip(";").strip() == proposed_sql.rstrip(";").strip():
+        from backend.analyzer.normalizer import normalize_sql
+        if normalize_sql(orig_sql).strip() == normalize_sql(proposed_sql).strip():
             return False, "UNCHANGED_REPAIR_SQL", {"original_sql": orig_sql, "proposed_sql": proposed_sql}
 
         # 5. Stored proposal artifact mismatch check
