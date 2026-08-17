@@ -99,10 +99,38 @@ def run_duckdb_execution(
     q_hash = hash_query(request.sql)
 
     import sqlglot
+    from sqlglot import expressions as exp
+    from backend.execution.exceptions import ExecutionTranspilationError
+    from backend.execution.dialect_transforms import transform_for_duckdb
+
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
-        executable_sql = sqlglot.transpile(request.sql, read=request.dialect, write="duckdb")[0]
-    except Exception:
-        executable_sql = request.sql
+        parsed = sqlglot.parse_one(request.sql, read=request.dialect)
+        transformed = parsed.transform(lambda node: transform_for_duckdb(node, request.dialect))
+        executable_sql = transformed.sql(dialect="duckdb")
+        
+        logger.info(
+            "DuckDB executable SQL [%s]:\n%s",
+            request.dialect,
+            executable_sql,
+        )
+    except Exception as exc:
+        err = ExecutionTranspilationError(f"Could not transpile {request.dialect} SQL to DuckDB: {exc}")
+        return ExecutionResult(
+            execution_id=execution_id,
+            query_hash=q_hash,
+            dataset_id=resolved_dataset.dataset_id,
+            dataset_hash=resolved_dataset.dataset_hash,
+            execution_mode=request.execution_mode,
+            status=ExecutionStatus.EXECUTION_ERROR,
+            timestamp=now_utc,
+            duration_ms=0.0,
+            row_count=0,
+            error_code="TRANSPILATION_ERROR",
+            error_message=str(err),
+        )
 
     # 2. Execute within timeout boundary using ThreadPoolExecutor/Process
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -118,6 +146,7 @@ def run_duckdb_execution(
         )
         try:
             res_dict = future.result(timeout=EXECUTION_TIMEOUT_SECONDS)
+            logger.info("Phase 3 execution result (dialect=%s): status=%s error=%s", request.dialect, res_dict["status"], res_dict["error_message"])
             return ExecutionResult(
                 execution_id=execution_id,
                 query_hash=q_hash,

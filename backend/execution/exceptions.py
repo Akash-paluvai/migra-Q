@@ -21,3 +21,7 @@ class SecurityViolationError(ExecutionError):
 
 class ResultCaptureError(ExecutionError):
     """Raised when query result capture or artifact persistence fails."""
+
+
+class ExecutionTranspilationError(ExecutionError):
+    """Raised when SQL target dialect cannot be transpiled to DuckDB AST."""
