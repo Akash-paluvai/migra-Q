@@ -1,0 +1,9 @@
+{
+  "dataset": "customer_risk",
+  "category": "noop",
+  "expected_validation": "PASS",
+  "expected_repair": "NOT_REQUIRED",
+  "require_scope_check": false,
+  "require_reexecution": false,
+  "require_independent_verification": false
+}

@@ -1,0 +1,1 @@
+SELECT product_id, list_price * 10 AS list_price, status FROM product_catalog

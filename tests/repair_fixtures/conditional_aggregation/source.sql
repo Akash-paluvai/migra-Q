@@ -1,0 +1,1 @@
+SELECT department, SUM(CASE WHEN gate_status = 'PASS' THEN score ELSE 0 END) AS passing_score FROM enterprise_metrics GROUP BY department

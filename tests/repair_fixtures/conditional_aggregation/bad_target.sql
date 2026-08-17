@@ -1,0 +1,1 @@
+SELECT department, SUM(score) AS passing_score FROM enterprise_metrics GROUP BY department

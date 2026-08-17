@@ -1,0 +1,1 @@
+SELECT customer_id, SUM(amount) AS total FROM transactions GROUP BY customer_id

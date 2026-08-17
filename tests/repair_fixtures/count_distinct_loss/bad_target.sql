@@ -1,0 +1,1 @@
+SELECT p.ref_code, COUNT(p.entity_id) AS entity_count FROM primary_entity p LEFT JOIN secondary_entity s ON p.ref_code = s.ref_code GROUP BY p.ref_code

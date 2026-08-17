@@ -1,0 +1,10 @@
+{
+  "dataset": "mixed_business_logic",
+  "category": "repair",
+  "expected_validation": "FAIL",
+  "expected_repair": "VERIFIED",
+  "max_remaining_discrepancies": 0,
+  "require_scope_check": true,
+  "require_reexecution": true,
+  "require_independent_verification": true
+}

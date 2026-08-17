@@ -1,0 +1,1 @@
+SELECT transaction_id, CASE WHEN amount >= 500.0 THEN 'HIGH' ELSE 'LOW' END AS risk_level FROM transactions

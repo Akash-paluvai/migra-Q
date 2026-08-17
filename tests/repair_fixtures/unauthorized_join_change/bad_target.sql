@@ -1,0 +1,1 @@
+SELECT p.ref_code, SUM(p.base_val) AS total_base FROM primary_entity p INNER JOIN secondary_entity s ON p.ref_code = s.ref_code GROUP BY p.ref_code

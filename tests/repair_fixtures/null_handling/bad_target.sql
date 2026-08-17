@@ -1,0 +1,1 @@
+SELECT product_id, list_price AS price FROM product_catalog
