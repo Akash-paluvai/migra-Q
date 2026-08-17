@@ -78,8 +78,8 @@ class TypedEvidence(BaseModel):
 class ImpactMetrics(BaseModel):
     """Impact metrics computed for a classified discrepancy."""
 
-    affected_row_count: int = 0
-    total_output_rows: int = 0
+    affected_row_count: int | None = None
+    total_output_rows: int | None = None
     affected_percentage: float = 0.0
     affected_column_count: int = 0
     aggregate_delta: dict[str, Any] | None = None
@@ -100,8 +100,8 @@ class DiscrepancyRecord(BaseModel):
     source_expression: str | None = None
     target_expression: str | None = None
     affected_output_columns: list[str] = Field(default_factory=list)
-    affected_row_count: int = 0
-    total_output_rows: int = 0
+    affected_row_count: int | None = None
+    total_output_rows: int | None = None
     affected_percentage: float = 0.0
     evidence: list[TypedEvidence] = Field(default_factory=list)
     validator_checks: list[str] = Field(default_factory=list)

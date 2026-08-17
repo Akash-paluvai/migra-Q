@@ -119,7 +119,7 @@ class EvidenceConsolidator:
             candidate = self.classifier.classify_signal(first_sig, signals)
 
             # Aggregate evidence & row counts across signals in this group
-            affected_rows = 0
+            affected_rows: int | None = None
             has_exec_evidence = False
             has_edge_case = False
             has_struct_match = any(
@@ -144,7 +144,7 @@ class EvidenceConsolidator:
                         or payload.get("rows_compared", 0)
                         or len([x for x in sig_list if x.source_validator == "RowValidator"])
                     )
-                    if row_cnt > affected_rows:
+                    if affected_rows is None or row_cnt > affected_rows:
                         affected_rows = row_cnt
 
                     if len(typed_evidences) < max_evidence_items:
@@ -198,7 +198,7 @@ class EvidenceConsolidator:
             # Compute severity & confidence
             severity = SeverityCalculator.calculate_severity(
                 category=candidate.category,
-                affected_row_count=affected_rows,
+                affected_row_count=affected_rows or 0,
                 total_output_rows=total_output_rows,
             )
 
@@ -209,13 +209,15 @@ class EvidenceConsolidator:
                 is_unknown=(candidate.category == DiscrepancyCategory.UNKNOWN),
             )
 
-            affected_pct = round(
-                (affected_rows / total_output_rows * 100.0) if total_output_rows > 0 else 0.0, 3
-            )
+            affected_pct = 0.0
+            if affected_rows is not None:
+                affected_pct = round(
+                    (affected_rows / total_output_rows * 100.0) if total_output_rows > 0 else 0.0, 3
+                )
 
             # Build human-readable deterministic classification reason
             reason_parts = [candidate.reason_template]
-            if affected_rows > 0:
+            if affected_rows is not None and affected_rows > 0:
                 reason_parts.append(f"Execution evidence confirms {affected_rows} affected rows.")
             if has_edge_case:
                 reason_parts.append(

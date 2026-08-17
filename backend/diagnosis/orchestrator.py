@@ -58,7 +58,7 @@ class DiagnosisOrchestrator:
         summary_stats = {
             "discrepancy_count": len(discrepancies),
             "signals_extracted": len(signals),
-            "affected_rows_total": sum(d.affected_row_count for d in discrepancies),
+            "affected_rows_total": sum((d.affected_row_count or 0) for d in discrepancies),
         }
 
         return DiscrepancyReport(
