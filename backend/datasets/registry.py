@@ -188,12 +188,34 @@ class DatasetRegistry:
             ("mixed_business_logic", "Enterprise Multi-Rule Analytics", "Complex multi-rule enterprise analytics with mixed logic", ["enterprise", "mixed"]),
             ("enterprise_metrics", "Enterprise Metrics Benchmark", "Enterprise KPI and metrics benchmark with 5000 rows", ["enterprise", "metrics"]),
         ]
+        
+        # Calculate a spec hash based on the generator function's source code
+        import inspect
+        import shutil
+        gen_source = inspect.getsource(self._seed_builtin_dataset)
+        spec_hash = hashlib.sha256(gen_source.encode()).hexdigest()[:16]
 
         for dataset_id, name, desc, tags in builtin_specs:
             target_dir = DATASETS_DIR / dataset_id
             manifest_file = target_dir / "manifest.json"
+            
+            regenerate = False
             if not manifest_file.exists():
-                self._seed_builtin_dataset(dataset_id, name, desc, tags, target_dir)
+                regenerate = True
+            else:
+                try:
+                    with open(manifest_file, "r") as f:
+                        data = json.load(f)
+                    if data.get("spec_hash") != spec_hash:
+                        regenerate = True
+                        logger.info(f"Dataset {dataset_id} spec_hash mismatch ({data.get('spec_hash')} != {spec_hash}). Regenerating...")
+                except Exception:
+                    regenerate = True
+            
+            if regenerate:
+                if target_dir.exists():
+                    shutil.rmtree(target_dir)
+                self._seed_builtin_dataset(dataset_id, name, desc, tags, target_dir, spec_hash)
 
     def _seed_builtin_dataset(
         self,
@@ -202,6 +224,7 @@ class DatasetRegistry:
         desc: str,
         tags: list[str],
         target_dir: Path,
+        spec_hash: str = "hash-unknown",
     ) -> None:
         """Generate distinct Parquet tables for a built-in dataset."""
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -209,9 +232,30 @@ class DatasetRegistry:
 
         try:
             if dataset_id == "customer_risk":
-                con.execute("CREATE TABLE customers AS SELECT i AS customer_id, 'SEG_' || (i % 5) AS customer_segment FROM range(1, 5001) t(i)")
-                con.execute("CREATE TABLE accounts AS SELECT i AS account_id, (i % 5000) + 1 AS customer_id, (i * 15.5) AS balance FROM range(1, 10001) t(i)")
-                con.execute("CREATE TABLE transactions AS SELECT i AS transaction_id, (i % 5000) + 1 AS customer_id, CASE WHEN i % 2 = 0 THEN 500.0 ELSE (i % 1000) * 1.5 END AS amount, 'COMPLETED' AS status, CURRENT_TIMESTAMP AS timestamp FROM range(1, 10001) t(i)")
+                con.execute("""
+                    CREATE TABLE customers AS 
+                    SELECT 
+                        i AS customer_id, 
+                        'FirstName_' || i AS first_name,
+                        'LastName_' || i AS last_name,
+                        DATE '1970-01-01' + CAST(i % 15000 AS INTEGER) AS date_of_birth,
+                        CASE WHEN i % 2 = 0 THEN 'M' ELSE 'F' END AS gender,
+                        'user_' || i || '@example.com' AS email,
+                        '555-' || LPAD(CAST(i % 10000 AS VARCHAR), 4, '0') AS phone,
+                        'City_' || (i % 100) AS city,
+                        'State_' || (i % 50) AS state,
+                        'Country_' || (i % 10) AS country,
+                        'SEG_' || (i % 5) AS customer_segment,
+                        DATE '2015-01-01' + CAST(i % 3000 AS INTEGER) AS customer_since,
+                        50000 + (i % 100) * 1000 AS annual_income,
+                        600 + (i % 200) AS credit_score,
+                        CASE WHEN i % 3 = 0 THEN 'HIGH' WHEN i % 3 = 1 THEN 'MEDIUM' ELSE 'LOW' END AS risk_tier,
+                        CASE WHEN i % 10 = 0 THEN 'INACTIVE' ELSE 'ACTIVE' END AS status,
+                        TIMESTAMP '2020-01-01 00:00:00' + INTERVAL (i * 1000) SECOND AS created_at
+                    FROM range(1, 5001) t(i)
+                """)
+                con.execute("CREATE TABLE accounts AS SELECT i AS account_id, (i % 5000) + 1 AS customer_id, ((i % 100) * 15.5) AS balance FROM range(1, 10001) t(i)")
+                con.execute("CREATE TABLE transactions AS SELECT i AS transaction_id, (i % 5000) + 1 AS customer_id, CASE WHEN i % 2 = 0 THEN 500.0 ELSE (i % 1000) * 1.5 END AS amount, CASE WHEN i % 5 = 0 THEN 'PENDING' ELSE 'COMPLETED' END AS status, CURRENT_TIMESTAMP AS timestamp FROM range(1, 10001) t(i)")
                 con.execute("CREATE TABLE support_cases AS SELECT i AS case_id, (i % 5000) + 1 AS customer_id, 'OPEN' AS status FROM range(1, 1001) t(i)")
             elif dataset_id == "customer_aggregation":
                 con.execute("CREATE TABLE sales_region AS SELECT i AS region_id, 'Region_' || (i % 10) AS region_name FROM range(1, 101) t(i)")
@@ -221,7 +265,7 @@ class DatasetRegistry:
                 con.execute("CREATE TABLE inventory_levels AS SELECT i AS item_id, (i % 3000) + 1 AS product_id, CASE WHEN i % 4 = 0 THEN NULL ELSE (i % 50) END AS stock_qty FROM range(1, 3001) t(i)")
             elif dataset_id == "join_semantics":
                 con.execute("CREATE TABLE primary_entity AS SELECT i AS entity_id, 'Code_' || (i % 50) AS ref_code, i * 100 AS base_val FROM range(1, 2001) t(i)")
-                con.execute("CREATE TABLE secondary_entity AS SELECT i AS detail_id, (i % 1500) + 1 AS entity_id, 'Code_' || (i % 50) AS ref_code, (i % 10) * 5.5 AS secondary_val FROM range(1, 4001) t(i)")
+                con.execute("CREATE TABLE secondary_entity AS SELECT i AS detail_id, (i % 1500) + 1 AS entity_id, 'Code_' || (i % 40) AS ref_code, (i % 10) * 5.5 AS secondary_val FROM range(1, 4001) t(i)")
             elif dataset_id == "date_semantics":
                 con.execute("CREATE TABLE event_logs AS SELECT i AS event_id, DATE '2026-01-01' + INTERVAL (i % 365) DAY AS event_date, TIMESTAMP '2026-01-01 08:00:00' + INTERVAL (i % 86400) SECOND AS event_time, 'USER_' || (i % 100) AS user_id FROM range(1, 4001) t(i)")
             else:  # mixed_business_logic or enterprise_metrics
@@ -259,9 +303,9 @@ class DatasetRegistry:
                     )
                 )
 
-            # Compute distinct dataset hash
+            # Compute distinct dataset content hash
             content_str = f"{dataset_id}:{json.dumps(row_counts)}:{json.dumps([t.model_dump() for t in table_schemas])}"
-            d_hash = hashlib.sha256(content_str.encode()).hexdigest()[:16]
+            content_hash = hashlib.sha256(content_str.encode()).hexdigest()[:16]
 
             manifest_data = {
                 "dataset_id": dataset_id,
@@ -272,7 +316,8 @@ class DatasetRegistry:
                 "row_count_total": sum(row_counts.values()),
                 "table_count": len(table_schemas),
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "dataset_hash": d_hash,
+                "dataset_hash": content_hash,
+                "spec_hash": spec_hash,
                 "schema_version": "1.0",
                 "is_builtin": True,
                 "is_upload": False,
