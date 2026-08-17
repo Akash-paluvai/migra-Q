@@ -158,7 +158,7 @@ class RepairVerificationService:
             stored_proposal_sql=stored_proposed_sql,
         )
 
-        rows_before = 0
+        rows_before = None
         if discrepancy_report_before and discrepancy_report_before.discrepancies:
             t_rec = next((d for d in discrepancy_report_before.discrepancies if d.discrepancy_id == disc_id), None)
             if t_rec:

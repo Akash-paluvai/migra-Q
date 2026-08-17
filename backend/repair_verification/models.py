@@ -49,9 +49,9 @@ class DiscrepancyOutcome(BaseModel):
     analysis_path: str | None = None
     affected_region: str | None = None
     status: DiscrepancyOutcomeStatus
-    affected_rows_before: int = 0
-    affected_rows_after: int = 0
-    reduction_count: int = 0
+    affected_rows_before: int | None = None
+    affected_rows_after: int | None = None
+    reduction_count: int | None = None
     reduction_percentage: float = 0.0
     matching_after_discrepancy_ids: list[str] = Field(default_factory=list)
     new_discrepancy_ids: list[str] = Field(default_factory=list)
@@ -63,9 +63,9 @@ class RepairOutcome(BaseModel):
 
     discrepancy_id_before: str
     status: DiscrepancyOutcomeStatus
-    affected_rows_before: int = 0
-    affected_rows_after: int = 0
-    reduction_count: int = 0
+    affected_rows_before: int | None = None
+    affected_rows_after: int | None = None
+    reduction_count: int | None = None
     reduction_percentage: float = 0.0
     matching_after_discrepancy_ids: list[str] = Field(default_factory=list)
     new_discrepancy_ids: list[str] = Field(default_factory=list)
@@ -116,8 +116,8 @@ class RepairVerificationResult(BaseModel):
     remaining_discrepancy_count: int = 0
     new_discrepancy_count: int = 0
     resolved_discrepancy_count: int = 0
-    affected_rows_before: int = 0
-    affected_rows_after: int = 0
+    affected_rows_before: int | None = None
+    affected_rows_after: int | None = None
     affected_percentage_before: float = 0.0
     affected_percentage_after: float = 0.0
     reduction_count: int = 0

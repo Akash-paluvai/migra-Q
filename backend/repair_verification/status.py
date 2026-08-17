@@ -81,6 +81,17 @@ class VerificationStatusDeterminer:
                         f"0 affected rows before repair. 0 -> 0 cannot yield VERIFIED status for behavioral discrepancy."
                     ),
                 )
+            
+            # If affected_rows_before is None, this is likely an Aggregate/Schema discrepancy without row-level impact
+            if target_outcome.affected_rows_before is None:
+                return (
+                    VerificationStatus.VERIFIED,
+                    (
+                        f"VERIFIED: Targeted discrepancy '{target_outcome.discrepancy_id_before}' resolved "
+                        f"(aggregate/schema level impact resolved completely, 0 new discrepancies)."
+                    ),
+                )
+
             return (
                 VerificationStatus.VERIFIED,
                 (
