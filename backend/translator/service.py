@@ -139,28 +139,29 @@ class TranslationService:
         model_name = getattr(provider, "model", settings.LLM_MODEL or "mock-model")
 
         # 5. Invoke Provider with Bounded Retries
-        max_retries = settings.LLM_MAX_RETRIES
-        attempts = 0
+        attempts = 1
         raw_resp = None
         last_error_code = None
         last_error_msg = None
 
-        while attempts <= max_retries:
-            attempts += 1
-            try:
-                raw_resp = provider.generate_translation(context, system_prompt, user_prompt)
-                break
-            except PermissionError as e:
-                # Non-retryable auth error
-                last_error_code = "LLM_AUTH_ERROR"
-                last_error_msg = str(e)
-                break
-            except TimeoutError as e:
-                last_error_code = "LLM_TIMEOUT"
-                last_error_msg = str(e)
-            except Exception as e:
+        try:
+            raw_resp = provider.generate_translation(context, system_prompt, user_prompt)
+        except Exception as e:
+            if type(e).__name__ == "NonRetryableProviderError":
+                if "AUTH_ERROR" in str(e):
+                    last_error_code = "LLM_AUTH_ERROR"
+                elif "json_validate_failed" in str(e):
+                    last_error_code = "INVALID_STRUCTURED_OUTPUT"
+                else:
+                    last_error_code = "LLM_PROVIDER_ERROR"
+            elif type(e).__name__ == "RateLimitError":
+                last_error_code = "LLM_RATE_LIMIT"
+            elif type(e).__name__ == "TransientProviderError":
+                last_error_code = "LLM_TRANSIENT_ERROR"
+            else:
                 last_error_code = "LLM_PROVIDER_ERROR"
-                last_error_msg = str(e)
+            
+            last_error_msg = str(e)
 
         duration_ms = (time.perf_counter() - start_time) * 1000.0
 

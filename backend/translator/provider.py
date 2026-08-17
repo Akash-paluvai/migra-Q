@@ -8,6 +8,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from backend.core.config import settings
+from backend.core.exceptions import (
+    NonRetryableProviderError,
+    ProviderError,
+    RateLimitError,
+    TransientProviderError,
+)
 from backend.translator.models import TranslationContext
 
 
@@ -314,21 +320,46 @@ class OpenAIProvider(LLMProvider):
                     break  # Success, exit retry loop
             except urllib.error.HTTPError as http_err:
                 if http_err.code in (401, 403):
-                    raise PermissionError(f"LLM_AUTH_ERROR: HTTP {http_err.code} Authentication Failed") from http_err
-                elif http_err.code == 429 and attempt < max_retries:
-                    time.sleep(retry_delay)
+                    raise NonRetryableProviderError(f"LLM_AUTH_ERROR: HTTP {http_err.code} Authentication Failed") from http_err
+                
+                elif http_err.code == 400:
+                    error_body = ""
+                    try:
+                        error_body = http_err.read().decode("utf-8")
+                        error_resp = json.loads(error_body)
+                        error_type = error_resp.get("error", {}).get("type", "")
+                        if "json_validate_failed" in error_type:
+                            raise NonRetryableProviderError("json_validate_failed: Schema mismatch") from http_err
+                    except Exception:
+                        pass
+                    raise NonRetryableProviderError(f"HTTP 400 Bad Request: {http_err.reason} - {error_body}") from http_err
+                    
+                elif http_err.code == 429:
+                    if attempt >= max_retries:
+                        raise RateLimitError("HTTP 429 Rate Limit Exceeded (Max Retries Reached)") from http_err
+                        
+                    retry_after = http_err.headers.get("retry-after")
+                    if retry_after and retry_after.replace(".", "").isdigit():
+                        delay = float(retry_after)
+                    else:
+                        delay = retry_delay
+                        
+                    time.sleep(delay)
                     retry_delay *= 2  # Exponential backoff
                     continue
-                elif http_err.code == 429:
-                    raise RuntimeError("LLM_RATE_LIMIT: HTTP 429 Rate Limit Exceeded") from http_err
+                    
                 else:
-                    raise RuntimeError(f"LLM_PROVIDER_ERROR: HTTP {http_err.code}") from http_err
-            except Exception as exc:
-                if attempt < max_retries:
+                    if attempt >= max_retries:
+                        raise TransientProviderError(f"LLM_PROVIDER_ERROR: HTTP {http_err.code}") from http_err
                     time.sleep(retry_delay)
                     retry_delay *= 2
                     continue
-                raise RuntimeError(f"LLM_PROVIDER_ERROR: {exc}") from exc
+            except Exception as exc:
+                if attempt >= max_retries:
+                    raise TransientProviderError(f"LLM_PROVIDER_ERROR: {exc}") from exc
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
 
         duration_ms = (time.perf_counter() - start_time) * 1000.0
         return RawProviderResponse(
