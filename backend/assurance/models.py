@@ -155,7 +155,6 @@ class TranslationSummary(BaseModel):
     status: str
     candidate_validation_status: str | None = None
     source_sql_hash: str = ""
-    source_sql: str = ""
     candidate_sql: str = ""
     provider: str = ""
     model: str = ""
@@ -269,6 +268,10 @@ class MigrationRecord(BaseModel):
     source_dialect: str
     target_dialect: str
     source_sql_hash: str
+    normalized_sql_hash: str | None = None
+    source_sql: str | None = None
+    source_sql_storage: str = "database"
+    source_sql_ref: str | None = None
     dataset_id: str
     dataset_hash: str
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

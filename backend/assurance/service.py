@@ -69,6 +69,10 @@ class MigrationAssuranceService:
         source_dialect: str,
         target_dialect: str,
         source_sql_hash: str,
+        normalized_sql_hash: str | None = None,
+        source_sql: str | None = None,
+        source_sql_storage: str = "database",
+        source_sql_ref: str | None = None,
         dataset_id: str,
         dataset_hash: str,
     ) -> MigrationRecord:
@@ -79,6 +83,10 @@ class MigrationAssuranceService:
             source_dialect=source_dialect,
             target_dialect=target_dialect,
             source_sql_hash=source_sql_hash,
+            normalized_sql_hash=normalized_sql_hash,
+            source_sql=source_sql,
+            source_sql_storage=source_sql_storage,
+            source_sql_ref=source_sql_ref,
             dataset_id=dataset_id,
             dataset_hash=dataset_hash,
         )
@@ -407,8 +415,8 @@ class MigrationAssuranceService:
         )
 
         # 4. Discrepancy Analysis
-        src_ana = AnalyzerService.analyze(source_sql)
-        tgt_ana = AnalyzerService.analyze(candidate_sql)
+        src_ana = AnalyzerService.analyze(source_sql, dialect=source_dialect)
+        tgt_ana = AnalyzerService.analyze(candidate_sql, dialect=target_dialect)
         orchestrator = DiagnosisOrchestrator()
         disc_report = orchestrator.diagnose(
             report=val_report,

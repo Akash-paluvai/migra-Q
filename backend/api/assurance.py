@@ -89,6 +89,15 @@ def get_migration(migration_id: str) -> MigrationRecord:
     record = _service.get_migration(migration_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"Migration {migration_id} not found")
+        
+    # Transparently load from artifact if needed
+    if record.source_sql_storage == "artifact" and record.source_sql_ref:
+        from pathlib import Path
+        try:
+            record.source_sql = Path(record.source_sql_ref).read_text(encoding="utf-8")
+        except Exception as e:
+            record.source_sql = f"-- Error loading source SQL from artifact: {e}"
+            
     return record
 
 

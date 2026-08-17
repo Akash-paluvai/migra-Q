@@ -292,11 +292,12 @@ class RepairVerificationService:
         src_meta = getattr(source_execution, "metadata", None) or {}
         if isinstance(src_meta, dict) and "sql" in src_meta:
             try:
-                src_ana = AnalyzerService.analyze(source_execution.metadata["sql"])
+                src_dialect = src_meta.get("dialect", "teradata")
+                src_ana = AnalyzerService.analyze(source_execution.metadata["sql"], dialect=src_dialect)
             except Exception:
                 pass
         try:
-            tgt_ana_after = AnalyzerService.analyze(repair_proposal.proposed_sql)
+            tgt_ana_after = AnalyzerService.analyze(repair_proposal.proposed_sql, dialect=target_dialect)
         except Exception:
             pass
 

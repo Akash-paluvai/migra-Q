@@ -21,6 +21,7 @@ interface CanonicalTranslationData {
   provider: string;
   model: string;
   error_message?: string | null;
+  normalized_sql_hash?: string;
 }
 
 export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
@@ -43,6 +44,13 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
         return;
       }
 
+      let migrationRes: Record<string, any> = {};
+      try {
+        migrationRes = await fetchApi<Record<string, any>>(`/api/v1/migrations/${report.migration_id}`);
+      } catch (err) {
+        console.error("Failed to fetch migration record", err);
+      }
+
       try {
         const rawRes = await fetchApi<Record<string, any>>(`/api/v1/translations/${translationId}`);
         const metadata = rawRes.metadata || {};
@@ -51,11 +59,12 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
         const data: CanonicalTranslationData = {
           translation_id: metadata.translation_id || translationId,
           migration_id: metadata.migration_id || report.migration_id,
-          source_sql: rawRes.request?.source_sql || rawRes.source_sql || report.translation_summary?.source_sql || '',
+          source_sql: migrationRes.source_sql || '-- Error retrieving source SQL from migration record',
           target_sql: response.target_sql || report.translation_summary?.candidate_sql || '',
           source_dialect: metadata.source_dialect || report.translation_summary?.source_dialect || '',
           target_dialect: metadata.target_dialect || report.translation_summary?.target_dialect || '',
           source_sql_hash: metadata.source_sql_hash || report.translation_summary?.source_sql_hash || '',
+          normalized_sql_hash: migrationRes.normalized_sql_hash || '',
           status: rawRes.status || report.translation_summary?.status || 'NOT_RUN',
           candidate_validation_status: rawRes.candidate_validation_status || report.translation_summary?.candidate_validation_status || null,
           provider: metadata.provider || report.translation_summary?.provider || 'translator',
@@ -82,13 +91,14 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
           const summary = report.translation_summary;
           if (summary) {
             setTranslationData({
-              translation_id: summary.translation_id,
+              translation_id: summary.translation_id || '',
               migration_id: report.migration_id,
-              source_sql: summary.source_sql || '',
+              source_sql: migrationRes.source_sql || summary.source_sql || '',
               target_sql: summary.candidate_sql || '',
               source_dialect: summary.source_dialect || '',
               target_dialect: summary.target_dialect || '',
               source_sql_hash: summary.source_sql_hash || '',
+              normalized_sql_hash: migrationRes.normalized_sql_hash || '',
               status: summary.status || 'NOT_RUN',
               candidate_validation_status: summary.candidate_validation_status || null,
               provider: summary.provider || 'translator',
@@ -234,6 +244,10 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Source SQL Hash</div>
             <div style={{ fontSize: '13px', fontWeight: 600, color: '#2563EB', marginTop: '4px' }}>{data.source_sql_hash || 'SHA256'}</div>
+          </div>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Normalized SQL Hash</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#059669', marginTop: '4px' }}>{data.normalized_sql_hash || 'SHA256'}</div>
           </div>
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Target Dialect</div>

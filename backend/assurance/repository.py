@@ -97,6 +97,10 @@ class MigrationAssuranceRepository:
                     existing.source_dialect = record.source_dialect
                     existing.target_dialect = record.target_dialect
                     existing.source_sql_hash = record.source_sql_hash
+                    existing.normalized_sql_hash = record.normalized_sql_hash
+                    existing.source_sql = record.source_sql
+                    existing.source_sql_storage = record.source_sql_storage
+                    existing.source_sql_ref = record.source_sql_ref
                     existing.dataset_id = record.dataset_id
                     existing.dataset_hash = record.dataset_hash
                     existing.current_state = current_state_str
@@ -111,6 +115,10 @@ class MigrationAssuranceRepository:
                         source_dialect=record.source_dialect,
                         target_dialect=record.target_dialect,
                         source_sql_hash=record.source_sql_hash,
+                        normalized_sql_hash=record.normalized_sql_hash,
+                        source_sql=record.source_sql,
+                        source_sql_storage=record.source_sql_storage,
+                        source_sql_ref=record.source_sql_ref,
                         dataset_id=record.dataset_id,
                         dataset_hash=record.dataset_hash,
                         current_state=current_state_str,
@@ -221,6 +229,10 @@ class MigrationAssuranceRepository:
                     source_dialect=row.source_dialect,
                     target_dialect=row.target_dialect,
                     source_sql_hash=row.source_sql_hash,
+                    normalized_sql_hash=row.normalized_sql_hash,
+                    source_sql=row.source_sql,
+                    source_sql_storage=row.source_sql_storage,
+                    source_sql_ref=row.source_sql_ref,
                     dataset_id=row.dataset_id,
                     dataset_hash=row.dataset_hash,
                     current_state=row.current_state,
@@ -297,6 +309,10 @@ class MigrationAssuranceRepository:
                         source_dialect=row.source_dialect,
                         target_dialect=row.target_dialect,
                         source_sql_hash=row.source_sql_hash,
+                        normalized_sql_hash=row.normalized_sql_hash,
+                        source_sql=row.source_sql,
+                        source_sql_storage=row.source_sql_storage,
+                        source_sql_ref=row.source_sql_ref,
                         dataset_id=row.dataset_id,
                         dataset_hash=row.dataset_hash,
                         current_state=row.current_state,

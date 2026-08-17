@@ -26,27 +26,22 @@ class SummaryBuilder:
     Each method produces a reference-only summary — no full artifact content is embedded.
     """
 
-    def build_translation_summary(self, result: TranslationResult) -> TranslationSummary:
+    def build_translation_summary(self, translation_result: TranslationResult) -> TranslationSummary:
         """Build a TranslationSummary from Phase 6 TranslationResult."""
-        candidate_sql = (
-            result.response.target_sql
-            if result.response and result.response.target_sql
-            else ""
-        )
         return TranslationSummary(
-            translation_id=result.metadata.translation_id,
-            source_dialect=result.metadata.source_dialect,
-            target_dialect=result.metadata.target_dialect,
-            status=result.status.value,
+            translation_id=translation_result.metadata.translation_id,
+            source_dialect=translation_result.metadata.source_dialect,
+            target_dialect=translation_result.metadata.target_dialect,
+            status=translation_result.status.value,
             candidate_validation_status=(
-                result.candidate_validation_status.value
-                if result.candidate_validation_status else None
+                translation_result.candidate_validation_status.value
+                if translation_result.candidate_validation_status else None
             ),
-            source_sql_hash=result.metadata.source_sql_hash,
-            candidate_sql=candidate_sql,
-            provider=result.metadata.provider,
-            model=result.metadata.model,
-            created_at=result.metadata.created_at,
+            source_sql_hash=getattr(translation_result.metadata, "source_sql_hash", ""),
+            candidate_sql=getattr(translation_result.response, "target_sql", ""),
+            provider=translation_result.metadata.provider,
+            model=translation_result.metadata.model,
+            created_at=translation_result.metadata.created_at,
         )
 
     def build_execution_summary(

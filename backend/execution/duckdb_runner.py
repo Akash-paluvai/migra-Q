@@ -98,11 +98,17 @@ def run_duckdb_execution(
 
     q_hash = hash_query(request.sql)
 
+    import sqlglot
+    try:
+        executable_sql = sqlglot.transpile(request.sql, read=request.dialect, write="duckdb")[0]
+    except Exception:
+        executable_sql = request.sql
+
     # 2. Execute within timeout boundary using ThreadPoolExecutor/Process
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(
             _raw_execute_task,
-            request.sql,
+            executable_sql,
             execution_id,
             str(resolved_dataset.dataset_dir),
             q_hash,

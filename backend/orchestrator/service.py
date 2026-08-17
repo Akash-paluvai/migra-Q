@@ -35,7 +35,7 @@ class MigrationOrchestrator:
     def __init__(self) -> None:
         self._assurance_service = MigrationAssuranceService()
 
-    def preflight_check(self, source_sql: str, dataset_id: str) -> dict[str, Any]:
+    def preflight_check(self, source_sql: str, dataset_id: str, source_dialect: str = "teradata") -> dict[str, Any]:
         """Perform preflight validation check for SQL & dataset compatibility."""
         from backend.datasets.registry import DatasetRegistry
 
@@ -44,7 +44,7 @@ class MigrationOrchestrator:
             raise ValueError(f"DATASET_NOT_FOUND: Dataset '{dataset_id}' is not registered.")
 
         # Parse SQL syntax with AnalyzerService
-        src_analysis = AnalyzerService.analyze(source_sql)
+        src_analysis = AnalyzerService.analyze(source_sql, dialect=source_dialect)
 
         # Check referenced tables against dataset table schemas
         table_summaries = registry.resolve_schema(dataset_id)
@@ -76,12 +76,35 @@ class MigrationOrchestrator:
         dataset_id = request.dataset_id
 
         # STEP 0: Preflight Compatibility & Schema Check
-        self.preflight_check(source_sql, dataset_id)
+        self.preflight_check(source_sql, dataset_id, source_dialect=source_dialect)
 
         # STEP 0.5: Generate root identity & create MigrationRecord(CREATED) early
         import uuid
+        from pathlib import Path
+        
         migration_id = request.migration_id or f"MIG-{uuid.uuid4().hex[:12].upper()}"
         source_hash = hashlib.sha256(source_sql.encode()).hexdigest()[:16]
+        
+        # STEP 1: Phase 1 Analyzer — Analyze Source SQL AST & semantics (Moved up for canonical hashing)
+        logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 1/8: Phase 1 Analyzer")
+        src_analysis = AnalyzerService.analyze(source_sql, dialect=source_dialect)
+        normalized_hash = src_analysis.sql_hash
+
+        sql_bytes = source_sql.encode('utf-8')
+        # 512KB Threshold
+        if len(sql_bytes) > 512 * 1024:
+            artifacts_dir = Path("backend/storage/artifacts")
+            artifacts_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = artifacts_dir / f"{migration_id}_source.sql"
+            artifact_path.write_bytes(sql_bytes)
+            
+            source_sql_val = None
+            source_sql_storage = "artifact"
+            source_sql_ref = str(artifact_path)
+        else:
+            source_sql_val = source_sql
+            source_sql_storage = "database"
+            source_sql_ref = None
 
         logger.info(
             f"[MigrationOrchestrator] [{migration_id}] Starting run (source_hash: {source_hash}, dialect: {source_dialect} -> {target_dialect}, dataset: {dataset_id})"
@@ -92,13 +115,15 @@ class MigrationOrchestrator:
             source_dialect=source_dialect,
             target_dialect=target_dialect,
             source_sql_hash=source_hash,
+            normalized_sql_hash=normalized_hash,
+            source_sql=source_sql_val,
+            source_sql_storage=source_sql_storage,
+            source_sql_ref=source_sql_ref,
             dataset_id=dataset_id,
             dataset_hash="pending",
         )
 
-        # STEP 1: Phase 1 Analyzer — Analyze Source SQL AST & semantics
-        logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 1/8: Phase 1 Analyzer")
-        src_analysis = AnalyzerService.analyze(source_sql)
+        # (Analyzer already ran above to generate canonical hash)
 
         # STEP 2: Phase 6 Translator — AI/Rule-based Translation
         logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 2/8: Phase 6 AI Translator")
@@ -141,7 +166,7 @@ class MigrationOrchestrator:
             )
 
         candidate_sql = trans_res.response.target_sql
-        tgt_analysis = AnalyzerService.analyze(candidate_sql)
+        tgt_analysis = AnalyzerService.analyze(candidate_sql, dialect=target_dialect)
 
         # STEP 3: Phase 3 Execution — DuckDB Execution Sandbox
         logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 3/8: Phase 3 DuckDB Execution Sandbox")

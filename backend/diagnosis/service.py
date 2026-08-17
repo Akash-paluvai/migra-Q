@@ -42,13 +42,15 @@ class DiagnosisService:
 
         if src_exec and hasattr(src_exec, "metadata") and src_exec.metadata.get("sql"):
             try:
-                src_ana = AnalyzerService.analyze(src_exec.metadata["sql"])
+                src_dialect = src_exec.metadata.get("dialect", "teradata")
+                src_ana = AnalyzerService.analyze(src_exec.metadata["sql"], dialect=src_dialect)
             except Exception:
                 pass
 
         if tgt_exec and hasattr(tgt_exec, "metadata") and tgt_exec.metadata.get("sql"):
             try:
-                tgt_ana = AnalyzerService.analyze(tgt_exec.metadata["sql"])
+                tgt_dialect = tgt_exec.metadata.get("dialect", "bigquery")
+                tgt_ana = AnalyzerService.analyze(tgt_exec.metadata["sql"], dialect=tgt_dialect)
             except Exception:
                 pass
 

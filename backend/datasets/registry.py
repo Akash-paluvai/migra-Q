@@ -221,7 +221,7 @@ class DatasetRegistry:
                 con.execute("CREATE TABLE inventory_levels AS SELECT i AS item_id, (i % 3000) + 1 AS product_id, CASE WHEN i % 4 = 0 THEN NULL ELSE (i % 50) END AS stock_qty FROM range(1, 3001) t(i)")
             elif dataset_id == "join_semantics":
                 con.execute("CREATE TABLE primary_entity AS SELECT i AS entity_id, 'Code_' || (i % 50) AS ref_code, i * 100 AS base_val FROM range(1, 2001) t(i)")
-                con.execute("CREATE TABLE secondary_entity AS SELECT i AS detail_id, (i % 1500) + 1 AS entity_id, 'Code_' || (i % 50) AS ref_code, (i % 10) * 5.5 AS extra_val FROM range(1, 4001) t(i)")
+                con.execute("CREATE TABLE secondary_entity AS SELECT i AS detail_id, (i % 1500) + 1 AS entity_id, 'Code_' || (i % 50) AS ref_code, (i % 10) * 5.5 AS secondary_val FROM range(1, 4001) t(i)")
             elif dataset_id == "date_semantics":
                 con.execute("CREATE TABLE event_logs AS SELECT i AS event_id, DATE '2026-01-01' + INTERVAL (i % 365) DAY AS event_date, TIMESTAMP '2026-01-01 08:00:00' + INTERVAL (i % 86400) SECOND AS event_time, 'USER_' || (i % 100) AS user_id FROM range(1, 4001) t(i)")
             else:  # mixed_business_logic or enterprise_metrics
