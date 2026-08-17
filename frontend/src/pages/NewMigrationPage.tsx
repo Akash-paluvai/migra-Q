@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Table,
+  Loader2,
 } from 'lucide-react';
 import { listDatasets, getDatasetSchema } from '../api/datasets';
 import { runMigration } from '../api/migrations';
@@ -336,8 +337,12 @@ export const NewMigrationPage: React.FC = () => {
               Triggers Phase 1 Analyzer → Phase 6 Translator → Phase 3 Execution → Phase 4–9 Quality Gates.
             </div>
 
-            <button type="submit" disabled={submitting} className="btn-primary" style={{ padding: '12px 24px', fontSize: '15px' }}>
-              <Sparkles size={18} />
+            <button type="submit" disabled={submitting} className="btn-primary" style={{ padding: '12px 24px', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {submitting ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Sparkles size={18} />
+              )}
               {submitting ? 'Executing Pipeline...' : 'Analyze & Migrate Logic'}
             </button>
           </div>

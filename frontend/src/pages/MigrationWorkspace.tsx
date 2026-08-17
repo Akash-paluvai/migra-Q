@@ -64,14 +64,16 @@ export const MigrationWorkspace: React.FC = () => {
     ? report.verification_summary.status
     : 'NOT_ATTEMPTED';
 
+  const isPassWithoutDiscrepancies = report.validation_summary?.overall_status === 'PASS' && (!report.discrepancy_summary || report.discrepancy_summary.discrepancy_count === 0);
+
   const tabs = [
     { id: 'overview', label: 'Overview', path: `/migrations/${migrationId}` },
     { id: 'translation', label: 'Translation', path: `/migrations/${migrationId}/translation` },
     { id: 'validation', label: 'Validation', path: `/migrations/${migrationId}/validation` },
     { id: 'discrepancies', label: 'Discrepancies', path: `/migrations/${migrationId}/discrepancies` },
-    { id: 'diagnosis', label: 'AI Diagnosis', path: `/migrations/${migrationId}/diagnosis` },
-    { id: 'repair', label: 'Repair', path: `/migrations/${migrationId}/repair` },
-    { id: 'verification', label: 'Verification', path: `/migrations/${migrationId}/verification` },
+    { id: 'diagnosis', label: 'AI Diagnosis', path: `/migrations/${migrationId}/diagnosis`, isSkipped: isPassWithoutDiscrepancies || report.diagnosis_summary?.status === 'NOT_REQUIRED' },
+    { id: 'repair', label: 'Repair', path: `/migrations/${migrationId}/repair`, isSkipped: !report.repair_summary?.repair_id && report.validation_summary?.overall_status === 'PASS' },
+    { id: 'verification', label: 'Verification', path: `/migrations/${migrationId}/verification`, isSkipped: report.validation_summary?.overall_status === 'PASS' },
     { id: 'assurance', label: 'Assurance', path: `/migrations/${migrationId}/assurance` },
     { id: 'lineage', label: 'Lineage', path: `/migrations/${migrationId}/lineage` },
   ];
@@ -138,7 +140,14 @@ export const MigrationWorkspace: React.FC = () => {
                 whiteSpace: 'nowrap',
               }}
             >
-              {tab.label}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {tab.label}
+                {tab.isSkipped && (
+                  <span style={{ fontSize: '10px', backgroundColor: isActive ? '#DBEAFE' : '#F1F5F9', color: isActive ? '#1D4ED8' : '#64748B', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                    SKIPPED
+                  </span>
+                )}
+              </div>
             </Link>
           );
         })}
