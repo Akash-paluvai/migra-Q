@@ -1,7 +1,7 @@
 """Unit tests for RowValidator and relational comparison."""
 
 from backend.execution.models import ColumnSchema, ExecutionResult, ExecutionStatus
-from backend.validation.comparison.values import compare_values, is_null_equivalent
+from backend.validation.comparison.values import values_equal, is_null_like
 from backend.validation.context import ValidationContext
 from backend.validation.models import ValidationCheckStatus, ValidationConfig
 from backend.validation.validators.rows import RowValidator
@@ -161,25 +161,24 @@ def test_row_duplicate_key_warning():
 
 
 def test_value_comparison_null_vs_null():
-    both, one = is_null_equivalent(None, None)
-    assert both is True
-    assert compare_values(None, None) is True
+    assert is_null_like(None) is True
+    assert values_equal(None, None) is True
 
 
 def test_value_comparison_null_vs_value():
-    both, one = is_null_equivalent(None, "val")
-    assert one is True
-    assert compare_values(None, "val") is False
+    assert is_null_like(None) is True
+    assert is_null_like("val") is False
+    assert values_equal(None, "val") is False
 
 
 def test_value_comparison_float_tolerance():
-    assert compare_values(100.0000001, 100.0000002, abs_tol=1e-5) is True
-    assert compare_values(100.0, 105.0, abs_tol=1e-5) is False
+    assert values_equal(100.0000001, 100.0000002, abs_tol=1e-5) is True
+    assert values_equal(100.0, 105.0, abs_tol=1e-5) is False
 
 
 def test_value_comparison_string_case():
-    assert compare_values("ACTIVE", "ACTIVE") is True
-    assert compare_values("ACTIVE", "active") is False
+    assert values_equal("ACTIVE", "ACTIVE") is True
+    assert values_equal("ACTIVE", "active") is False
 
 
 def test_row_composite_key():
