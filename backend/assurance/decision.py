@@ -117,7 +117,7 @@ class DecisionEngine:
         # Determine BLOCKED vs FAILED based on failure type
         # Technical prerequisite failures (translation, execution, lineage) → FAILED
         # Semantic evaluation failures (discrepancies, repair incomplete) → BLOCKED
-        technical_gate_ids = {"GATE-001", "GATE-002", "GATE-003", "GATE-010"}
+        technical_gate_ids = {"GATE-001", "GATE-002", "GATE-003"}
         has_technical_failure = any(
             g.gate_id in technical_gate_ids for g in failed_gates
         )

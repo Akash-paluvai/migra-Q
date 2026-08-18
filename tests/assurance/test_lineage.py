@@ -18,7 +18,7 @@ class TestDirectPassLineage:
             source_execution_id="EXEC-SRC",
             target_execution_id="EXEC-TGT",
             validation_id="VAL-001",
-            repair_attempted=False,
+            path=VerificationPath.DIRECT_PASS,
         )
         assert lineage.verification_path == VerificationPath.DIRECT_PASS
         assert lineage.is_complete is True
@@ -29,7 +29,7 @@ class TestDirectPassLineage:
             source_execution_id="EXEC-SRC",
             target_execution_id="EXEC-TGT",
             validation_id="VAL-001",
-            repair_attempted=False,
+            path=VerificationPath.DIRECT_PASS,
         )
         assert lineage.is_complete is False
 
@@ -43,7 +43,7 @@ class TestDirectPassLineage:
             ai_diagnosis_id="",
             repair_id="",
             verification_id="",
-            repair_attempted=False,
+            path=VerificationPath.DIRECT_PASS,
         )
         assert lineage.is_complete is True
 
@@ -59,7 +59,7 @@ class TestRepairedPassLineage:
             ai_diagnosis_id="AIDIAG-001",
             repair_id="REP-001",
             verification_id="VER-001",
-            repair_attempted=True,
+            path=VerificationPath.REPAIRED_PASS,
         )
         assert lineage.verification_path == VerificationPath.REPAIRED_PASS
         assert lineage.is_complete is True
@@ -74,7 +74,7 @@ class TestRepairedPassLineage:
             ai_diagnosis_id="AIDIAG-001",
             repair_id="",
             verification_id="VER-001",
-            repair_attempted=True,
+            path=VerificationPath.REPAIRED_PASS,
         )
         assert lineage.is_complete is False
 
@@ -88,7 +88,7 @@ class TestRepairedPassLineage:
             ai_diagnosis_id="AIDIAG-001",
             repair_id="REP-001",
             verification_id="",
-            repair_attempted=True,
+            path=VerificationPath.REPAIRED_PASS,
         )
         assert lineage.is_complete is False
 
@@ -100,7 +100,7 @@ class TestMissingFields:
             source_execution_id="",
             target_execution_id="EXEC-TGT",
             validation_id="",
-            repair_attempted=False,
+            path=VerificationPath.DIRECT_PASS,
         )
         missing = builder.get_missing_fields(lineage)
         assert "source_execution_id" in missing
@@ -117,7 +117,7 @@ class TestMissingFields:
             ai_diagnosis_id="",
             repair_id="",
             verification_id="",
-            repair_attempted=True,
+            path=VerificationPath.REPAIRED_PASS,
         )
         missing = builder.get_missing_fields(lineage)
         assert "diagnosis_id" in missing

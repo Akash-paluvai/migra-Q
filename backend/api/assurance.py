@@ -35,7 +35,7 @@ def list_migrations() -> list[MigrationRecord]:
 @assurance_router.get("/flagship")
 def get_flagship_migration() -> MigrationRecord:
     """Retrieve flagship migration record if it exists (retrieval only, no auto-create)."""
-    record = _service.get_migration("MIG-FLAGSHIP-001")
+    record = _service.get_migration("MIG-7BF1E8BDF850")
     if record is None:
         raise HTTPException(status_code=404, detail="Flagship migration not found. Run the flagship demo script to create it.")
     return record

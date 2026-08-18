@@ -171,7 +171,7 @@ class TestDiagnosisSummary:
 class TestVerificationSummary:
     def test_none_input(self, builder):
         summary = builder.build_verification_summary(None)
-        assert summary.verification_id == ""
+        assert summary.verification_id is None
 
     def test_with_result(self, builder):
         result = RepairVerificationResult(

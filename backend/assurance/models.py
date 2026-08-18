@@ -21,6 +21,7 @@ class MigrationState(str, Enum):
     CREATED = "CREATED"
     ANALYZING = "ANALYZING"
     TRANSLATING = "TRANSLATING"
+    PREFLIGHTING = "PREFLIGHTING"
     EXECUTING = "EXECUTING"
     VALIDATING = "VALIDATING"
     DISCREPANCIES_FOUND = "DISCREPANCIES_FOUND"
@@ -49,6 +50,8 @@ class VerificationPath(str, Enum):
 
     DIRECT_PASS = "DIRECT_PASS"
     REPAIRED_PASS = "REPAIRED_PASS"
+    REPAIR_FAILED = "REPAIR_FAILED"
+    REPAIR_NOT_EXECUTED = "REPAIR_NOT_EXECUTED"
 
 
 class GateOutcome(str, Enum):
@@ -160,6 +163,28 @@ class TranslationSummary(BaseModel):
     provider: str = ""
     model: str = ""
     created_at: str = ""
+    transformations: list[dict[str, Any]] = Field(default_factory=list)
+    transformation_count: int = 0
+    assumption_count: int = 0
+
+
+class MissingColumnRef(BaseModel):
+    """Reference to a missing column identified during Schema Preflight."""
+
+    table: str | None
+    column: str
+
+
+class PreflightSummary(BaseModel):
+    """Aggregated Schema Preflight summary."""
+
+    status: str
+    failure_category: str | None = None
+    execution_allowed: bool = False
+    missing_columns: list[MissingColumnRef] = Field(default_factory=list)
+    unresolved_tables: list[str] = Field(default_factory=list)
+    available_columns: dict[str, list[str]] = Field(default_factory=dict)
+    reason: str | None = None
 
 
 class ExecutionSummary(BaseModel):
@@ -226,8 +251,9 @@ class RepairSummary(BaseModel):
 class VerificationSummary(BaseModel):
     """Aggregated Phase 8 verification summary."""
 
-    verification_id: str = ""
-    status: str = ""
+    verification_id: str | None = None
+    status: str = "NOT_EXECUTED"
+    reason: str | None = None
     original_discrepancy_count: int = 0
     remaining_discrepancy_count: int = 0
     new_discrepancy_count: int = 0
@@ -323,6 +349,7 @@ class MigrationAssuranceReport(BaseModel):
 
     # Phase summaries
     translation_summary: TranslationSummary | None = None
+    preflight_summary: PreflightSummary | None = None
     execution_summary: ExecutionSummary | None = None
     validation_summary: ValidationSummary | None = None
     discrepancy_summary: DiscrepancySummary | None = None

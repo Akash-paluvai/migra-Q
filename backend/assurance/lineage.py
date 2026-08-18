@@ -15,6 +15,7 @@ class AuditLineageBuilder:
     def build(
         self,
         *,
+        path: VerificationPath,
         translation_id: str = "",
         source_execution_id: str = "",
         target_execution_id: str = "",
@@ -23,11 +24,11 @@ class AuditLineageBuilder:
         ai_diagnosis_id: str = "",
         repair_id: str = "",
         verification_id: str = "",
-        repair_attempted: bool = False,
     ) -> AuditLineage:
         """Build an AuditLineage and determine its completeness.
 
         Args:
+            path: Explicit VerificationPath determined by assurance logic.
             translation_id: Phase 6 translation ID.
             source_execution_id: Phase 3 source execution ID.
             target_execution_id: Phase 3 target execution ID.
@@ -36,15 +37,13 @@ class AuditLineageBuilder:
             ai_diagnosis_id: Phase 7 AI diagnosis ID.
             repair_id: Phase 7 repair proposal ID.
             verification_id: Phase 8 verification ID.
-            repair_attempted: Whether repair was attempted (determines required fields).
 
         Returns:
             AuditLineage with completeness flag set.
         """
-        path = VerificationPath.REPAIRED_PASS if repair_attempted else VerificationPath.DIRECT_PASS
 
         # Check completeness based on verification path
-        is_complete = self._check_completeness(
+        has_required = self._check_completeness(
             path=path,
             translation_id=translation_id,
             source_execution_id=source_execution_id,
@@ -55,6 +54,7 @@ class AuditLineageBuilder:
             repair_id=repair_id,
             verification_id=verification_id,
         )
+        is_complete = has_required and path in (VerificationPath.DIRECT_PASS, VerificationPath.REPAIRED_PASS)
 
         return AuditLineage(
             translation_id=translation_id,
@@ -125,4 +125,12 @@ class AuditLineageBuilder:
                 "repair_id",
                 "verification_id",
             ]
+        elif path == VerificationPath.REPAIR_FAILED:
+            return base + [
+                "diagnosis_id",
+                "ai_diagnosis_id",
+                "repair_id",
+            ]
+        elif path == VerificationPath.REPAIR_NOT_EXECUTED:
+            return base
         return base

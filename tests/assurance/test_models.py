@@ -14,8 +14,8 @@ from backend.assurance.models import (
 
 
 class TestMigrationStateEnum:
-    def test_all_13_states_defined(self):
-        assert len(MigrationState) == 13
+    def test_all_14_states_defined(self):
+        assert len(MigrationState) == 14
 
     def test_terminal_states(self):
         terminals = {MigrationState.VERIFIED, MigrationState.FAILED, MigrationState.BLOCKED, MigrationState.ERROR}
