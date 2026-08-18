@@ -88,7 +88,7 @@ class SummaryBuilder:
         """Build a DiscrepancySummary from Phase 5 DiscrepancyReport."""
         if report is None:
             return DiscrepancySummary()
-        total_affected = sum(d.affected_row_count for d in report.discrepancies)
+        total_affected = sum((d.affected_row_count or 0) for d in report.discrepancies)
         return DiscrepancySummary(
             diagnosis_id=report.diagnosis_id,
             discrepancy_count=report.discrepancy_count,

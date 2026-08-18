@@ -1,3 +1,4 @@
+import traceback
 """Validation Orchestrator — executes independent validators and aggregates ValidationReport."""
 
 import uuid
@@ -61,9 +62,10 @@ class ValidationOrchestrator:
                     status=ValidationCheckStatus.ERROR,
                     severity=ValidationSeverity.HIGH,
                     score=0.0,
-                    summary=f"Validator unexpected error: {exc}",
+                    summary=f"Validator unexpected error: {exc}\n{traceback.format_exc()}",
                 )
 
+            print(f"Check: {res.check_name}, Error: {res.summary}")
             results.append(res)
 
             if res.status == ValidationCheckStatus.PASS:
