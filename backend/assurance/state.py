@@ -26,8 +26,13 @@ ALLOWED_TRANSITIONS: dict[MigrationState, frozenset[MigrationState]] = {
         MigrationState.ERROR,
     }),
     MigrationState.TRANSLATING: frozenset({
-        MigrationState.EXECUTING,
+        MigrationState.PREFLIGHTING,
         MigrationState.FAILED,
+        MigrationState.ERROR,
+    }),
+    MigrationState.PREFLIGHTING: frozenset({
+        MigrationState.EXECUTING,
+        MigrationState.BLOCKED,
         MigrationState.ERROR,
     }),
     MigrationState.EXECUTING: frozenset({
