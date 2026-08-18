@@ -10,6 +10,9 @@ from backend.core.config import settings
 from backend.core.logging import get_logger, setup_logging
 from backend.db.duckdb_check import check_duckdb
 
+# Ensure custom dialects are registered with SQLGlot on startup
+import backend.core.dialects  # noqa: F401
+
 setup_logging()
 logger = get_logger(__name__)
 

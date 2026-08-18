@@ -7,7 +7,7 @@ from typing import Any
 import duckdb
 import pandas as pd
 
-from backend.validation.comparison.values import compare_values
+from backend.validation.comparison.values import values_equal
 from backend.validation.context import ValidationContext
 from backend.validation.models import (
     VALIDATOR_VERSION,
@@ -84,7 +84,7 @@ class AggregateValidator(BaseValidator):
                 val_src = _compute_stat(df_src, col, fn_upper)
                 val_tgt = _compute_stat(df_tgt, col, fn_upper)
 
-                is_match = compare_values(
+                is_match = values_equal(
                     val_src,
                     val_tgt,
                     abs_tol=context.config.numeric_absolute_tolerance,

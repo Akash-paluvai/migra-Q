@@ -5,6 +5,7 @@ from .oracle import transform_oracle_rules
 from .teradata import transform_teradata_rules
 from .bigquery import transform_bigquery_rules
 from .snowflake import transform_snowflake_rules
+from .netezza import transform_netezza_rules
 
 def transform_for_duckdb(node: exp.Expression, dialect: str) -> exp.Expression:
     """Master routing function for AST transformations to DuckDB."""
@@ -18,6 +19,8 @@ def transform_for_duckdb(node: exp.Expression, dialect: str) -> exp.Expression:
         node = transform_bigquery_rules(node)
     elif dialect == "snowflake":
         node = transform_snowflake_rules(node)
+    elif dialect == "netezza":
+        node = transform_netezza_rules(node)
         
     # 2. Apply common sandbox rules (e.g. table prefix stripping)
     node = transform_common_sandbox_rules(node)
