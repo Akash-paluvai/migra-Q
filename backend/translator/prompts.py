@@ -21,7 +21,8 @@ CRITICAL SECURITY AND BEHAVIORAL DIRECTIVES:
 4. READ-ONLY CANDIDATE: The target SQL MUST be a read-only SELECT or CTE query. Never generate
    INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, COPY, ATTACH, LOAD, or INSTALL.
 5. DO NOT HALLUCINATE: Do not invent non-existent tables or columns outside provided schema/context.
-6. Return your translation exclusively conforming to the requested JSON response schema.
+6. RECORD TRANSFORMATIONS: You MUST record every dialect-specific function or keyword mapping (e.g., NVL -> COALESCE, DECODE -> CASE) into the `translated_rules` array. Provide ONLY the bare function/keyword name in `source_expression` and `target_expression` (e.g., "NVL" and "COALESCE"), NOT the full expression with arguments. Use `rule_type="FUNCTION_MAPPING"`.
+7. Return your translation exclusively conforming to the requested JSON response schema.
 """
 
 

@@ -63,20 +63,19 @@ class LLMProvider(ABC):
 
 
 class MockLLMProvider(LLMProvider):
-    """Deterministic Mock LLM Provider for 100% offline, zero-network unit testing."""
+    """Mock provider for deterministic testing without external dependencies."""
 
     def __init__(self, mode: str = "MOCK_GOOD"):
         self.mode = mode
+        self.name = "mock-provider"
+        self.model = f"mock-model-{mode.lower()}"
 
     def generate_translation(
-        self,
-        context: TranslationContext,
-        system_prompt: str,
-        user_prompt: str,
+        self, context: TranslationContext, system_prompt: str, user_prompt: str
     ) -> RawProviderResponse:
-        """Return deterministic mock responses based on configured scenario mode."""
+        """Return deterministic mock translation response."""
         start_time = time.perf_counter()
-
+        
         if self.mode == "MOCK_TIMEOUT":
             raise ProviderExecutionTimeoutError("Global execution timeout exceeded during LLM retries.")
 
@@ -151,6 +150,30 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;""",
                     }
                 ],
             }
+        elif self.mode in ("MOCK_NVL_COALESCE", "MOCK_ZERO_TRANSFORMATIONS", "MOCK_MULTIPLE_TRANSFORMATIONS"):
+            import os
+            
+            fixture_file = None
+            if self.mode == "MOCK_NVL_COALESCE":
+                fixture_file = "oracle_snowflake_nvl.json"
+            elif self.mode == "MOCK_ZERO_TRANSFORMATIONS":
+                fixture_file = "zero_transformations.json"
+            elif self.mode == "MOCK_MULTIPLE_TRANSFORMATIONS":
+                fixture_file = "multiple_transformations.json"
+
+            fixture_path = os.path.join(
+                os.path.dirname(__file__), "..", "..", "tests", "fixtures", "translation", fixture_file
+            )
+            try:
+                with open(fixture_path, "r", encoding="utf-8") as f:
+                    payload = json.load(f)
+            except FileNotFoundError:
+                payload = {
+                    "target_sql": "SELECT fallback",
+                    "assumptions": [],
+                    "potential_risks": [],
+                    "translated_rules": []
+                }
         elif self.mode == "MOCK_SEMANTICALLY_WRONG":
             # Valid candidate with multiple structural/aggregation semantic changes
             payload = {
@@ -444,7 +467,7 @@ def get_llm_provider(
     p_name = (provider_name or settings.LLM_PROVIDER).lower()
 
     if p_name == "mock":
-        return MockLLMProvider(mode="MOCK_GOOD")
+        return MockLLMProvider(mode="MOCK_NVL_COALESCE")
 
     if p_name in ("openai", "openrouter", "groq"):
         settings.validate_llm_config()
