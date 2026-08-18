@@ -34,6 +34,7 @@ SUPPORTED_DIALECTS = {
     "sqlite",
     "oracle",
     "mysql",
+    "netezza",
 }
 
 
@@ -68,6 +69,7 @@ class TranslationService:
             "sqlite",
             "oracle",
             "mysql",
+            "netezza",
         }
 
         if source_dialect not in SUPPORTED_DIALECTS or target_dialect not in SUPPORTED_DIALECTS:
@@ -138,16 +140,19 @@ class TranslationService:
         provider_name = getattr(provider, "name", provider.__class__.__name__)
         model_name = getattr(provider, "model", settings.LLM_MODEL or "mock-model")
 
-        # 5. Invoke Provider with Bounded Retries
-        attempts = 1
+        provider_attempts = 1
         raw_resp = None
         last_error_code = None
         last_error_msg = None
-
         try:
             raw_resp = provider.generate_translation(context, system_prompt, user_prompt)
+            provider_attempts = raw_resp.provider_attempts
         except Exception as e:
-            if type(e).__name__ == "NonRetryableProviderError":
+            if type(e).__name__ == "ProviderTokenExhaustionError":
+                last_error_code = "PROVIDER_TOKEN_EXHAUSTED"
+            elif type(e).__name__ == "ProviderExecutionTimeoutError":
+                last_error_code = "PROVIDER_TIMEOUT"
+            elif type(e).__name__ == "NonRetryableProviderError":
                 if "AUTH_ERROR" in str(e):
                     last_error_code = "LLM_AUTH_ERROR"
                 elif "json_validate_failed" in str(e):
@@ -183,7 +188,7 @@ class TranslationService:
                 prompt_hash=prompt_hash,
                 created_at=created_at,
                 duration_ms=duration_ms,
-                retry_count=attempts - 1,
+                retry_count=provider_attempts - 1 if provider_attempts > 0 else 0,
                 error_code=last_error_code,
                 error_message=last_error_msg,
             )
@@ -211,7 +216,7 @@ class TranslationService:
                 prompt_hash=prompt_hash,
                 created_at=created_at,
                 duration_ms=duration_ms,
-                retry_count=attempts - 1,
+                retry_count=provider_attempts - 1 if provider_attempts > 0 else 0,
                 input_token_count=raw_resp.input_tokens,
                 output_token_count=raw_resp.output_tokens,
                 total_token_count=raw_resp.total_tokens,
@@ -256,7 +261,7 @@ class TranslationService:
             prompt_hash=prompt_hash,
             created_at=created_at,
             duration_ms=duration_ms,
-            retry_count=attempts - 1,
+            retry_count=provider_attempts - 1 if provider_attempts > 0 else 0,
             input_token_count=raw_resp.input_tokens,
             output_token_count=raw_resp.output_tokens,
             total_token_count=raw_resp.total_tokens,

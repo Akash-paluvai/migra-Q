@@ -134,7 +134,11 @@ class DiagnosisAIService:
             )
         except Exception as e:
             # Handle all Provider errors gracefully
-            if type(e).__name__ == "NonRetryableProviderError":
+            if type(e).__name__ == "ProviderTokenExhaustionError":
+                error_code = "PROVIDER_TOKEN_EXHAUSTED"
+            elif type(e).__name__ == "ProviderExecutionTimeoutError":
+                error_code = "PROVIDER_TIMEOUT"
+            elif type(e).__name__ == "NonRetryableProviderError":
                 error_code = "INVALID_STRUCTURED_OUTPUT" if "json_validate_failed" in str(e) else "LLM_PROVIDER_ERROR"
             elif type(e).__name__ == "RateLimitError":
                 error_code = "LLM_RATE_LIMIT"
@@ -199,6 +203,7 @@ class DiagnosisAIService:
                 total_token_count=raw_resp.total_tokens,
                 error_code="UNGROUNDED_CLAIM",
                 error_message=ground_msg,
+                retry_count=raw_resp.provider_attempts - 1 if raw_resp.provider_attempts > 0 else 0,
             )
             diag = AIDiagnosis(
                 diagnosis_id=diagnosis_id,
@@ -315,6 +320,7 @@ class DiagnosisAIService:
             input_token_count=raw_resp.input_tokens,
             output_token_count=raw_resp.output_tokens,
             total_token_count=raw_resp.total_tokens,
+            retry_count=raw_resp.provider_attempts - 1 if raw_resp.provider_attempts > 0 else 0,
         )
 
         diag = AIDiagnosis(

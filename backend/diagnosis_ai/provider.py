@@ -13,6 +13,8 @@ from backend.core.config import settings
 from backend.core.exceptions import (
     NonRetryableProviderError,
     ProviderError,
+    ProviderExecutionTimeoutError,
+    ProviderTokenExhaustionError,
     RateLimitError,
     TransientProviderError,
 )
@@ -483,8 +485,12 @@ class OpenAIDiagnosisProvider(AIDiagnosisProvider):
 
         max_retries = settings.LLM_MAX_RETRIES
         retry_delay = 2.0  # start with 2 seconds
+        global_timeout_sec = 60.0
 
         for attempt in range(1, max_retries + 1):
+            if (time.perf_counter() - start_time) > global_timeout_sec:
+                raise ProviderExecutionTimeoutError("Global execution timeout exceeded during LLM retries.")
+
             req = urllib.request.Request(
                 url,
                 data=json.dumps(body).encode("utf-8"),
@@ -499,6 +505,7 @@ class OpenAIDiagnosisProvider(AIDiagnosisProvider):
                     input_tokens = usage_data.get("prompt_tokens", 0)
                     output_tokens = usage_data.get("completion_tokens", 0)
                     total_tokens = usage_data.get("total_tokens", 0)
+                    provider_attempts = attempt
                     break  # Success, exit retry loop
             except urllib.error.HTTPError as http_err:
                 if http_err.code in (401, 403):
@@ -517,6 +524,35 @@ class OpenAIDiagnosisProvider(AIDiagnosisProvider):
                     raise NonRetryableProviderError(f"HTTP 400 Bad Request: {http_err.reason} - {error_body}") from http_err
                     
                 elif http_err.code == 429:
+                    error_body = ""
+                    try:
+                        error_body = http_err.read().decode("utf-8")
+                        error_resp = json.loads(error_body)
+                        err_obj = error_resp.get("error", {})
+                        
+                        err_type = err_obj.get("type", "")
+                        err_code = err_obj.get("code", "")
+                        err_message = err_obj.get("message", "").lower()
+                        
+                        is_exhaustion = False
+                        if err_type == "tokens" and "rate_limit_exceeded" in err_code:
+                            if "tokens per day" in err_message or "tpd" in err_message or "quota" in err_message:
+                                is_exhaustion = True
+                        elif "exhausted" in err_message or "limit_exceeded" in err_message or "credits" in err_message:
+                            is_exhaustion = True
+                            
+                        if is_exhaustion:
+                            retry_after_str = http_err.headers.get("retry-after", "0")
+                            r_after = float(retry_after_str) if retry_after_str.replace(".", "").isdigit() else 0.0
+                            raise ProviderTokenExhaustionError(
+                                "LLM provider daily token limit exhausted.",
+                                retry_after=r_after
+                            )
+                    except ProviderTokenExhaustionError:
+                        raise
+                    except Exception:
+                        pass
+                        
                     if attempt >= max_retries:
                         raise RateLimitError("HTTP 429 Rate Limit Exceeded (Max Retries Reached)") from http_err
                         
@@ -559,6 +595,7 @@ class OpenAIDiagnosisProvider(AIDiagnosisProvider):
             output_tokens=output_tokens,
             total_tokens=total_tokens,
             duration_ms=duration_ms,
+            provider_attempts=provider_attempts,
         )
         return parsed, raw_resp
 

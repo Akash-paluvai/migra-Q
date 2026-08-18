@@ -29,5 +29,15 @@ class RateLimitError(ProviderError):
         super().__init__(message, details)
         self.retry_after = retry_after
 
+class ProviderTokenExhaustionError(NonRetryableProviderError):
+    """Raised when daily tokens or quota are exhausted (e.g. TPD)."""
+    def __init__(self, message: str, error_code: str = "PROVIDER_TOKEN_EXHAUSTED", retry_after: float = 0.0, details: dict | None = None):
+        super().__init__(message, details)
+        self.error_code = error_code
+        self.retry_after = retry_after
+
+class ProviderExecutionTimeoutError(NonRetryableProviderError):
+    """Raised when the LLM provider retry loop exceeds the global execution timeout."""
+
 class TransientProviderError(ProviderError):
     """Raised for transient provider issues (e.g., HTTP 5xx, timeouts)."""

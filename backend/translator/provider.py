@@ -11,6 +11,8 @@ from backend.core.config import settings
 from backend.core.exceptions import (
     NonRetryableProviderError,
     ProviderError,
+    ProviderExecutionTimeoutError,
+    ProviderTokenExhaustionError,
     RateLimitError,
     TransientProviderError,
 )
@@ -26,6 +28,7 @@ class RawProviderResponse:
     output_tokens: int | None = None
     total_tokens: int | None = None
     duration_ms: float = 0.0
+    provider_attempts: int = 1
 
 
 def _clean_json_response(raw_text: str) -> str:
@@ -75,7 +78,7 @@ class MockLLMProvider(LLMProvider):
         start_time = time.perf_counter()
 
         if self.mode == "MOCK_TIMEOUT":
-            raise TimeoutError("LLM provider request timed out.")
+            raise ProviderExecutionTimeoutError("Global execution timeout exceeded during LLM retries.")
 
         if self.mode in ("MOCK_AUTH_ERROR", "AUTH_ERROR"):
             raise PermissionError("Authentication failed: invalid API key.")
@@ -83,8 +86,29 @@ class MockLLMProvider(LLMProvider):
         if self.mode in ("MOCK_PROVIDER_ERROR", "PROVIDER_ERROR"):
             raise RuntimeError("LLM provider internal error.")
 
+        if self.mode == "MOCK_TOKEN_EXHAUSTION":
+            raise ProviderTokenExhaustionError("LLM provider daily token limit exhausted.", retry_after=2040)
+
         if self.mode in ("MOCK_RATE_LIMIT", "RATE_LIMIT"):
-            raise RuntimeError("Rate limit exceeded: 429 Too Many Requests.")
+            raise RateLimitError("HTTP 429 Rate Limit Exceeded (Max Retries Reached)")
+
+        if self.mode == "MOCK_TRANSIENT_429":
+            # Simulate 2 retries then success
+            target_sql = "SELECT 'transient_recovery' AS status;"
+            payload = {
+                "target_sql": target_sql,
+                "assumptions": ["Recovered after transient 429"],
+                "potential_risks": [],
+                "translated_rules": [],
+            }
+            return RawProviderResponse(
+                raw_json=json.dumps(payload),
+                input_tokens=100,
+                output_tokens=20,
+                total_tokens=120,
+                duration_ms=(time.perf_counter() - start_time) * 1000.0,
+                provider_attempts=3,
+            )
 
         if self.mode == "MOCK_INVALID_JSON":
             duration_ms = (time.perf_counter() - start_time) * 1000.0
@@ -94,6 +118,7 @@ class MockLLMProvider(LLMProvider):
                 output_tokens=20,
                 total_tokens=120,
                 duration_ms=duration_ms,
+                provider_attempts=1,
             )
 
         if self.mode == "MOCK_UNSAFE_SQL":
@@ -203,6 +228,7 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;"""
             output_tokens=150,
             total_tokens=400,
             duration_ms=duration_ms,
+            provider_attempts=1,
         )
 
 
@@ -300,8 +326,12 @@ class OpenAIProvider(LLMProvider):
 
         max_retries = settings.LLM_MAX_RETRIES
         retry_delay = 2.0  # start with 2 seconds
+        global_timeout_sec = 60.0
 
         for attempt in range(1, max_retries + 1):
+            if (time.perf_counter() - start_time) > global_timeout_sec:
+                raise ProviderExecutionTimeoutError("Global execution timeout exceeded during LLM retries.")
+
             req = urllib.request.Request(
                 url,
                 data=json.dumps(body).encode("utf-8"),
@@ -317,6 +347,7 @@ class OpenAIProvider(LLMProvider):
                     input_tokens = usage_data.get("prompt_tokens", 0)
                     output_tokens = usage_data.get("completion_tokens", 0)
                     total_tokens = usage_data.get("total_tokens", 0)
+                    provider_attempts = attempt
                     break  # Success, exit retry loop
             except urllib.error.HTTPError as http_err:
                 if http_err.code in (401, 403):
@@ -335,6 +366,35 @@ class OpenAIProvider(LLMProvider):
                     raise NonRetryableProviderError(f"HTTP 400 Bad Request: {http_err.reason} - {error_body}") from http_err
                     
                 elif http_err.code == 429:
+                    error_body = ""
+                    try:
+                        error_body = http_err.read().decode("utf-8")
+                        error_resp = json.loads(error_body)
+                        err_obj = error_resp.get("error", {})
+                        
+                        err_type = err_obj.get("type", "")
+                        err_code = err_obj.get("code", "")
+                        err_message = err_obj.get("message", "").lower()
+                        
+                        is_exhaustion = False
+                        if err_type == "tokens" and "rate_limit_exceeded" in err_code:
+                            if "tokens per day" in err_message or "tpd" in err_message or "quota" in err_message:
+                                is_exhaustion = True
+                        elif "exhausted" in err_message or "limit_exceeded" in err_message or "credits" in err_message:
+                            is_exhaustion = True
+                            
+                        if is_exhaustion:
+                            retry_after_str = http_err.headers.get("retry-after", "0")
+                            r_after = float(retry_after_str) if retry_after_str.replace(".", "").isdigit() else 0.0
+                            raise ProviderTokenExhaustionError(
+                                "LLM provider daily token limit exhausted.",
+                                retry_after=r_after
+                            )
+                    except ProviderTokenExhaustionError:
+                        raise
+                    except Exception:
+                        pass
+                        
                     if attempt >= max_retries:
                         raise RateLimitError("HTTP 429 Rate Limit Exceeded (Max Retries Reached)") from http_err
                         
@@ -368,6 +428,7 @@ class OpenAIProvider(LLMProvider):
             output_tokens=output_tokens,
             total_tokens=total_tokens,
             duration_ms=duration_ms,
+            provider_attempts=provider_attempts,
         )
 
 
