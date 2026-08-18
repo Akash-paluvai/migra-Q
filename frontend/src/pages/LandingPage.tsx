@@ -16,7 +16,7 @@ export const LandingPage: React.FC = () => {
       navigate('/migrations/MIG-7BF1E8BDF850');
     } catch (err) {
       // If it doesn't exist, fallback to the interactive demo creation
-      navigate('/new?demo=flagship');
+      navigate('/migrations/new?demo=flagship');
     } finally {
       setLoadingDemo(false);
     }
@@ -49,7 +49,7 @@ export const LandingPage: React.FC = () => {
 
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <Link 
-              to="/new" 
+              to="/migrations/new" 
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

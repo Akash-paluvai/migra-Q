@@ -9,7 +9,8 @@ export type StepState =
   | 'BLOCKED'
   | 'NOT_RUN'
   | 'NOT_REQUIRED'
-  | 'NOT_APPLICABLE';
+  | 'NOT_APPLICABLE'
+  | 'SKIPPED';
 
 interface WorkflowStepperProps {
   currentState: MigrationState;
@@ -43,6 +44,23 @@ const STEP_DEFINITIONS: StepDefinition[] = [
     },
   },
   {
+    id: 'SCHEMA_PREFLIGHT',
+    label: 'Schema Preflight',
+    getStatus: (curState, rep) => {
+      if (curState === 'PREFLIGHTING') return { state: 'RUNNING' };
+      if (!rep || !rep.translation_summary || rep.translation_summary.status !== 'SUCCESS') {
+        return { state: 'NOT_RUN', badgeText: 'NOT RUN' };
+      }
+      if (!rep.preflight_summary) {
+        // Backward compatibility: if no preflight_summary exists but we reached execution, assume PASS
+        if (rep.execution_summary) return { state: 'SUCCESS' };
+        return { state: 'NOT_RUN', badgeText: 'NOT RUN' };
+      }
+      if (rep.preflight_summary.status === 'PASS') return { state: 'SUCCESS' };
+      return { state: 'BLOCKED', badgeText: 'BLOCKED' };
+    },
+  },
+  {
     id: 'EXECUTE',
     label: 'Execute',
     getStatus: (curState, rep) => {
@@ -67,7 +85,8 @@ const STEP_DEFINITIONS: StepDefinition[] = [
       }
       if (!rep.validation_summary) return { state: 'NOT_RUN', badgeText: 'NOT RUN' };
       if (rep.validation_summary.overall_status === 'PASS') return { state: 'SUCCESS' };
-      return { state: 'FAILED', badgeText: 'DISCREPANCIES' };
+      const count = rep.discrepancy_summary?.discrepancy_count || 1;
+      return { state: 'FAILED', badgeText: `${count} DISCREPANC${count === 1 ? 'Y' : 'IES'}` };
     },
   },
   {
@@ -77,12 +96,12 @@ const STEP_DEFINITIONS: StepDefinition[] = [
       if (curState === 'DIAGNOSING') return { state: 'RUNNING' };
       if (!rep || !rep.validation_summary) return { state: 'NOT_RUN', badgeText: 'NOT RUN' };
       if (rep.validation_summary.overall_status === 'PASS') {
-        return { state: 'NOT_REQUIRED', badgeText: 'NOT REQ' };
+        return { state: 'SKIPPED', badgeText: 'SKIPPED' };
       }
       if (rep.discrepancy_summary && rep.discrepancy_summary.discrepancy_count > 0) {
-        return { state: 'SUCCESS' };
+        return { state: 'SUCCESS', badgeText: 'DIAGNOSED' };
       }
-      return { state: 'NOT_REQUIRED', badgeText: 'NOT REQ' };
+      return { state: 'SKIPPED', badgeText: 'SKIPPED' };
     },
   },
   {
@@ -90,14 +109,14 @@ const STEP_DEFINITIONS: StepDefinition[] = [
     label: 'Repair',
     getStatus: (curState, rep) => {
       if (curState === 'REPAIR_PROPOSED') return { state: 'RUNNING' };
-      if (!rep || !rep.validation_summary) return { state: 'NOT_APPLICABLE', badgeText: 'N/A' };
-      if (rep.validation_summary.overall_status === 'PASS') {
-        return { state: 'NOT_REQUIRED', badgeText: 'NOT REQ' };
-      }
-      if (rep.repair_summary && rep.repair_summary.repair_id) {
-        return { state: 'SUCCESS' };
-      }
-      return { state: 'NOT_APPLICABLE', badgeText: 'N/A' };
+      if (!rep || !rep.repair_summary) return { state: 'NOT_RUN', badgeText: 'NOT EXECUTED' };
+      
+      const status = rep.repair_summary.status;
+      if (status === 'PROPOSED' || status === 'SUCCEEDED') return { state: 'SUCCESS', badgeText: 'PROPOSED' };
+      if (status === 'FAILED') return { state: 'FAILED', badgeText: 'FAILED' };
+      if (status === 'NOT_EXECUTED') return { state: 'NOT_RUN', badgeText: 'NOT EXECUTED' };
+      
+      return { state: 'SKIPPED', badgeText: 'SKIPPED' };
     },
   },
   {
@@ -105,20 +124,14 @@ const STEP_DEFINITIONS: StepDefinition[] = [
     label: 'Verify',
     getStatus: (curState, rep) => {
       if (curState === 'REPAIR_VERIFYING') return { state: 'RUNNING' };
-      if (!rep || !rep.validation_summary) return { state: 'NOT_APPLICABLE', badgeText: 'N/A' };
-      if (rep.validation_summary.overall_status === 'PASS') {
-        return { state: 'NOT_REQUIRED', badgeText: 'NOT REQ' };
-      }
-      if (!rep.repair_summary || !rep.repair_summary.repair_id) {
-        return { state: 'NOT_APPLICABLE', badgeText: 'N/A' };
-      }
-      if (rep.verification_summary?.status === 'VERIFIED') {
-        return { state: 'SUCCESS' };
-      }
-      if (rep.verification_summary?.status === 'FAILED') {
-        return { state: 'FAILED', badgeText: 'FAILED' };
-      }
-      return { state: 'NOT_APPLICABLE', badgeText: 'N/A' };
+      if (!rep || !rep.verification_summary) return { state: 'NOT_RUN', badgeText: 'NOT EXECUTED' };
+
+      const status = rep.verification_summary.status;
+      if (status === 'VERIFIED') return { state: 'SUCCESS', badgeText: 'VERIFIED' };
+      if (status === 'FAILED_VERIFICATION' || status === 'FAILED') return { state: 'FAILED', badgeText: 'FAILED' };
+      if (status === 'NOT_EXECUTED') return { state: 'NOT_RUN', badgeText: 'NOT EXECUTED' };
+
+      return { state: 'SKIPPED', badgeText: 'SKIPPED' };
     },
   },
   {
@@ -165,6 +178,10 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ currentState, 
           circleColor = '#15803D';
           circleContent = '✓';
           labelColor = '#0F172A';
+          if (badgeText && badgeText !== 'SUCCESS') {
+            badgeBg = '#DCFCE7';
+            badgeColor = '#15803D';
+          }
         } else if (state === 'RUNNING') {
           circleBg = 'var(--accent-primary)';
           circleColor = '#FFFFFF';
@@ -184,6 +201,13 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ currentState, 
           labelColor = '#D97706';
           badgeBg = '#FEF3C7';
           badgeColor = '#D97706';
+        } else if (state === 'SKIPPED') {
+          circleBg = '#F8FAFC';
+          circleColor = '#94A3B8';
+          circleContent = '○';
+          labelColor = '#94A3B8';
+          badgeBg = '#F1F5F9';
+          badgeColor = '#64748B';
         } else if (state === 'NOT_REQUIRED' || state === 'NOT_APPLICABLE') {
           circleBg = '#F8FAFC';
           circleColor = '#94A3B8';

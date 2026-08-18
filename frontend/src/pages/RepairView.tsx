@@ -108,6 +108,41 @@ export const RepairView: React.FC<RepairViewProps> = ({ report }) => {
         </div>
       </div>
 
+      {/* Repair Explanation Summary */}
+      <div className="card-panel">
+        <h3 style={{ marginBottom: '16px', color: '#0F172A' }}>REPAIR SUMMARY</h3>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Target Region</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#166534', marginTop: '4px' }}>{summary.changed_region || 'Unknown Region'}</div>
+          </div>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Repair Status</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', marginTop: '4px' }}>{summary.status}</div>
+          </div>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Confidence</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-primary)', marginTop: '4px' }}>{(summary.repair_confidence * 100).toFixed(0)}%</div>
+          </div>
+        </div>
+
+        {report.diagnosis_summary?.observed_change && (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>Diagnosed Root Cause</div>
+            <p style={{ margin: 0, color: '#475569', fontSize: '13px', lineHeight: 1.6 }}>
+              {report.diagnosis_summary.observed_change}
+            </p>
+          </div>
+        )}
+
+        <div style={{ backgroundColor: '#F0F9FF', padding: '16px', borderRadius: '8px', border: '1px solid #BAE6FD', marginTop: '20px' }}>
+          <div style={{ fontSize: '13px', color: '#0369A1' }}>
+            <span style={{ fontWeight: 700 }}>Why this matters:</span> This automated repair modifies the target candidate SQL to resolve the identified semantic discrepancies, ensuring data equivalence with the source execution.
+          </div>
+        </div>
+      </div>
+
       {/* SQL Diff Panel */}
       <div className="card-panel">
         <h3 style={{ marginBottom: '16px' }}>SQL REPAIR DIFF (CANDIDATE vs PROPOSED)</h3>

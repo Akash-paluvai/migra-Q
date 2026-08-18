@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { MigrationAssuranceReport } from '../types/migration';
-import { Cpu, Search, HelpCircle, ShieldCheck } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
 import { fetchApi } from '../api/client';
 import { SkippedStageCard } from '../components/SkippedStageCard';
 
@@ -105,77 +105,117 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
   const uncertainty = diagnosisData?.diagnosis?.uncertainty_statement 
     || 'Uncertainty assessment requires full AI diagnosis artifact. Summary provides observed change and confidence only.';
 
+  const verificationStatus = report.verification_summary?.status || (report.repair_summary?.repair_id ? 'PENDING' : 'SKIPPED');
+
   return (
-    <div>
+    <div className="card-panel" style={{ padding: 0, overflow: 'hidden' }}>
       {/* Header */}
-      <div className="card-panel">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <h3>AI-GROUNDED DISCREPANCY DIAGNOSIS</h3>
-            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>
-              Diagnosis ID: {summary?.diagnosis_id || 'N/A'} | Target Discrepancy: {summary?.discrepancy_id || 'D-001'}
-            </p>
+      <div style={{ padding: '24px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--bg-primary)', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--accent-primary)' }}>
+          <div style={{
+            width: '24px', height: '24px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px'
+          }}>●</div>
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>AI DIAGNOSIS</h3>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ padding: '4px 12px', backgroundColor: '#EFF6FF', borderRadius: '6px', fontSize: '12px', fontWeight: 600, color: '#1E40AF', border: '1px solid #BFDBFE' }}>
+            DIAGNOSED
           </div>
-          <div style={{ backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '6px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, border: '1px solid #BFDBFE' }}>
-            Diagnosis Confidence: {summary?.diagnosis_confidence ? `${(summary.diagnosis_confidence * 100).toFixed(0)}%` : 'N/A'}
-          </div>
+          {summary?.diagnosis_confidence && (
+            <div style={{ padding: '4px 12px', backgroundColor: '#EFF6FF', borderRadius: '6px', fontSize: '12px', fontWeight: 600, color: '#1E40AF', border: '1px solid #BFDBFE' }}>
+              Confidence {(summary.diagnosis_confidence * 100).toFixed(0)}%
+            </div>
+          )}
         </div>
       </div>
 
-      {loading && (
-        <div className="card-panel" style={{ padding: '32px', textAlign: 'center', color: '#64748B' }}>
-          Loading canonical AI diagnosis artifact...
-        </div>
-      )}
+      <div style={{ padding: '32px 24px', backgroundColor: 'var(--bg-secondary)' }}>
+        <p style={{ fontSize: '15px', color: 'var(--text-primary)', lineHeight: 1.6, margin: '0 0 32px 0', maxWidth: '800px' }}>
+          Deterministic validation detected a semantic discrepancy.<br />
+          AI diagnosis was invoked to explain the observed behavior.
+        </p>
 
-      {/* Structured AI Diagnosis Panel */}
-      {!loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-          {/* Section 1: Observed Change */}
-          <div className="card-panel" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent-primary)' }}>
-              <Search size={18} />
-              <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Observed Behavior Change</h4>
+        {loading && (
+          <div style={{ padding: '32px', textAlign: 'center', color: '#64748B' }}>
+            Loading canonical AI diagnosis artifact...
+          </div>
+        )}
+
+        {!loading && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
+            {/* Context Table */}
+            <div>
+              <div style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: '14px', color: 'var(--text-secondary)', fontWeight: 500 }}>Discrepancies</span>
+                  <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{discSummary?.discrepancy_count || 1}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: '14px', color: 'var(--text-secondary)', fontWeight: 500 }}>Validation</span>
+                  <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>FAIL</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: '14px', color: 'var(--text-secondary)', fontWeight: 500 }}>Diagnosis</span>
+                  <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>COMPLETE</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: '14px', color: 'var(--text-secondary)', fontWeight: 500 }}>Repair</span>
+                  <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                    {report.repair_summary?.repair_id ? 'PROPOSED' : 'PENDING'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px' }}>
+                  <span style={{ fontSize: '14px', color: 'var(--text-secondary)', fontWeight: 500 }}>Verification</span>
+                  <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 600 }}>{verificationStatus}</span>
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: '14px', color: '#0F172A', fontWeight: 500, lineHeight: 1.6 }}>
-              {observedChange}
+
+            {/* Structured Info */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div>
+                <h4 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                  Observed Behavior
+                </h4>
+                <div style={{ height: '1px', backgroundColor: 'var(--border-color)', marginBottom: '12px' }} />
+                <p style={{ fontSize: '14px', color: 'var(--text-primary)', lineHeight: 1.6, margin: 0 }}>
+                  {observedChange}
+                </p>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                  Likely Mechanism
+                </h4>
+                <div style={{ height: '1px', backgroundColor: 'var(--border-color)', marginBottom: '12px' }} />
+                <p style={{ fontSize: '14px', color: 'var(--text-primary)', lineHeight: 1.6, margin: 0 }}>
+                  {likelyMechanism}
+                </p>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                  Possible Cause
+                </h4>
+                <div style={{ height: '1px', backgroundColor: 'var(--border-color)', marginBottom: '12px' }} />
+                <p style={{ fontSize: '14px', color: 'var(--text-primary)', lineHeight: 1.6, margin: 0 }}>
+                  {possibleCause}
+                </p>
+              </div>
+              
+              <div style={{ marginTop: '8px', padding: '12px 16px', backgroundColor: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#B45309' }}>
+                  <HelpCircle size={16} />
+                  <h4 style={{ fontSize: '13px', fontWeight: 700, margin: 0 }}>Uncertainty Statement</h4>
+                </div>
+                <p style={{ fontSize: '13px', color: '#92400E', lineHeight: 1.5, margin: 0 }}>
+                  {uncertainty}
+                </p>
+              </div>
             </div>
           </div>
-
-          {/* Section 2: Likely Mechanism */}
-          <div className="card-panel" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent-primary)' }}>
-              <Cpu size={18} />
-              <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Likely Mechanism</h4>
-            </div>
-            <div style={{ fontSize: '14px', color: '#0F172A', fontWeight: 500, lineHeight: 1.6 }}>
-              {likelyMechanism}
-            </div>
-          </div>
-
-          {/* Section 3: Possible Cause */}
-          <div className="card-panel" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent-primary)' }}>
-              <ShieldCheck size={18} />
-              <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Possible Cause</h4>
-            </div>
-            <div style={{ fontSize: '14px', color: '#0F172A', fontWeight: 500, lineHeight: 1.6 }}>
-              {possibleCause}
-            </div>
-          </div>
-
-          {/* Section 4: Uncertainty */}
-          <div className="card-panel" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#D97706' }}>
-              <HelpCircle size={18} />
-              <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#B45309' }}>Uncertainty Statement</h4>
-            </div>
-            <div style={{ fontSize: '14px', color: '#475569', lineHeight: 1.6 }}>
-              {uncertainty}
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
