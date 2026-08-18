@@ -2,21 +2,21 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Play, Shield, Code, Database } from 'lucide-react';
 import { HeroVisual } from '../components/HeroVisual';
-import { getFlagshipMigration } from '../api/migrations';
+import { fetchApi } from '../api/client';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const [loadingDemo, setLoadingDemo] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleExploreFlagship = async () => {
     try {
       setLoadingDemo(true);
-      setErrorMsg(null);
-      const flagship = await getFlagshipMigration();
-      navigate(`/migrations/${flagship.migration_id}`);
+      // Try fetching the specific migration instance
+      await fetchApi('/api/v1/migrations/MIG-7BF1E8BDF850/assurance');
+      navigate('/migrations/MIG-7BF1E8BDF850');
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to load flagship demo.');
+      // If it doesn't exist, fallback to the interactive demo creation
+      navigate('/new?demo=flagship');
     } finally {
       setLoadingDemo(false);
     }
@@ -39,36 +39,53 @@ export const LandingPage: React.FC = () => {
             Platform - MIGRA-Q
           </div>
 
-          <h1 style={{ fontSize: '48px', fontWeight: 700, lineHeight: 1.2, letterSpacing: '-1px', marginBottom: '24px' }}>
-            MIGRA-Q: AI-Assisted Data Modernization Product Suite
+          <h1 style={{ fontSize: '48px', fontWeight: 700, lineHeight: 1.2, marginBottom: '24px', letterSpacing: '-1px' }}>
+            MIGRA-Q: AI-Assisted Data<br/>Modernization Product Suite
           </h1>
 
           <p style={{ fontSize: '18px', color: '#CBD5E1', lineHeight: 1.6, marginBottom: '40px', maxWidth: '600px' }}>
             Reimagining Enterprise Data Transformation with AI Precision, Deterministic Execution, and Built-in Quality Assurance.
           </p>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <Link to="/migrations/new" className="btn-primary">
-              Start a Migration
-              <ArrowRight size={18} />
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+            <Link 
+              to="/new" 
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'var(--accent-primary)',
+                color: '#fff',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                fontWeight: 600,
+                textDecoration: 'none',
+                transition: 'all 0.2s'
+              }}
+            >
+              Start a Migration <ArrowRight size={18} />
             </Link>
-
             <button
               onClick={handleExploreFlagship}
               disabled={loadingDemo}
-              className="btn-primary"
-              style={{ backgroundColor: 'transparent', border: '1px solid #FFFFFF' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                color: '#fff',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                fontWeight: 600,
+                cursor: loadingDemo ? 'not-allowed' : 'pointer',
+                opacity: loadingDemo ? 0.7 : 1,
+                transition: 'all 0.2s'
+              }}
             >
-              <Play size={16} />
-              {loadingDemo ? 'Loading...' : 'Explore Flagship Demo'}
+              <Play size={18} /> {loadingDemo ? 'Loading...' : 'Explore Flagship Demo'}
             </button>
           </div>
-
-          {errorMsg && (
-            <div style={{ marginTop: '16px', color: '#FCA5A5', fontSize: '13px', fontWeight: 500 }}>
-              ⚠ {errorMsg}
-            </div>
-          )}
         </div>
         
         {/* Abstract Tech Background Pattern (simulating the reference image) */}

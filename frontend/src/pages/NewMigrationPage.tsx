@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sparkles,
   FileText,
@@ -37,6 +37,7 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;
 
 export const NewMigrationPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [datasets, setDatasets] = useState<DatasetSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDatasetId, setSelectedDatasetId] = useState('');
@@ -55,6 +56,20 @@ export const NewMigrationPage: React.FC = () => {
   useEffect(() => {
     fetchDatasets();
   }, []);
+
+  // Handle URL query parameters for auto-loading demos
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('demo') === 'flagship') {
+      setSourceDialect('teradata');
+      setTargetDialect('bigquery');
+      setSelectedDatasetId('customer_risk');
+      setSql(FLAGSHIP_SQL);
+      
+      // Clean up the URL quietly so it doesn't persist on reload
+      window.history.replaceState({}, '', '/new');
+    }
+  }, [location.search]);
 
   // Fetch table schemas whenever selected dataset changes
   useEffect(() => {
