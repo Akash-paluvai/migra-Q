@@ -34,6 +34,7 @@ SUPPORTED_DIALECTS = {
     "sqlite",
     "oracle",
     "mysql",
+    "netezza",
 }
 
 
@@ -68,6 +69,7 @@ class TranslationService:
             "sqlite",
             "oracle",
             "mysql",
+            "netezza",
         }
 
         if source_dialect not in SUPPORTED_DIALECTS or target_dialect not in SUPPORTED_DIALECTS:
@@ -138,29 +140,33 @@ class TranslationService:
         provider_name = getattr(provider, "name", provider.__class__.__name__)
         model_name = getattr(provider, "model", settings.LLM_MODEL or "mock-model")
 
-        # 5. Invoke Provider with Bounded Retries
-        max_retries = settings.LLM_MAX_RETRIES
-        attempts = 0
+        provider_attempts = 1
         raw_resp = None
         last_error_code = None
         last_error_msg = None
-
-        while attempts <= max_retries:
-            attempts += 1
-            try:
-                raw_resp = provider.generate_translation(context, system_prompt, user_prompt)
-                break
-            except PermissionError as e:
-                # Non-retryable auth error
-                last_error_code = "LLM_AUTH_ERROR"
-                last_error_msg = str(e)
-                break
-            except TimeoutError as e:
-                last_error_code = "LLM_TIMEOUT"
-                last_error_msg = str(e)
-            except Exception as e:
+        try:
+            raw_resp = provider.generate_translation(context, system_prompt, user_prompt)
+            provider_attempts = raw_resp.provider_attempts
+        except Exception as e:
+            if type(e).__name__ == "ProviderTokenExhaustionError":
+                last_error_code = "PROVIDER_TOKEN_EXHAUSTED"
+            elif type(e).__name__ == "ProviderExecutionTimeoutError":
+                last_error_code = "PROVIDER_TIMEOUT"
+            elif type(e).__name__ == "NonRetryableProviderError":
+                if "AUTH_ERROR" in str(e):
+                    last_error_code = "LLM_AUTH_ERROR"
+                elif "json_validate_failed" in str(e):
+                    last_error_code = "INVALID_STRUCTURED_OUTPUT"
+                else:
+                    last_error_code = "LLM_PROVIDER_ERROR"
+            elif type(e).__name__ == "RateLimitError":
+                last_error_code = "LLM_RATE_LIMIT"
+            elif type(e).__name__ == "TransientProviderError":
+                last_error_code = "LLM_TRANSIENT_ERROR"
+            else:
                 last_error_code = "LLM_PROVIDER_ERROR"
-                last_error_msg = str(e)
+            
+            last_error_msg = str(e)
 
         duration_ms = (time.perf_counter() - start_time) * 1000.0
 
@@ -182,7 +188,7 @@ class TranslationService:
                 prompt_hash=prompt_hash,
                 created_at=created_at,
                 duration_ms=duration_ms,
-                retry_count=attempts - 1,
+                retry_count=provider_attempts - 1 if provider_attempts > 0 else 0,
                 error_code=last_error_code,
                 error_message=last_error_msg,
             )
@@ -210,7 +216,7 @@ class TranslationService:
                 prompt_hash=prompt_hash,
                 created_at=created_at,
                 duration_ms=duration_ms,
-                retry_count=attempts - 1,
+                retry_count=provider_attempts - 1 if provider_attempts > 0 else 0,
                 input_token_count=raw_resp.input_tokens,
                 output_token_count=raw_resp.output_tokens,
                 total_token_count=raw_resp.total_tokens,
@@ -255,7 +261,7 @@ class TranslationService:
             prompt_hash=prompt_hash,
             created_at=created_at,
             duration_ms=duration_ms,
-            retry_count=attempts - 1,
+            retry_count=provider_attempts - 1 if provider_attempts > 0 else 0,
             input_token_count=raw_resp.input_tokens,
             output_token_count=raw_resp.output_tokens,
             total_token_count=raw_resp.total_tokens,

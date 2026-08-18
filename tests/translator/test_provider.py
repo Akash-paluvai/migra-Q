@@ -2,6 +2,7 @@
 
 import pytest
 
+from backend.core.exceptions import ProviderExecutionTimeoutError
 from backend.translator.context_builder import build_translation_context
 from backend.translator.models import TranslationRequest
 from backend.translator.prompts import build_translation_prompt
@@ -59,7 +60,7 @@ def test_mock_provider_timeout_raises():
     ctx = build_translation_context(req)
     provider = MockLLMProvider(mode="MOCK_TIMEOUT")
 
-    with pytest.raises(TimeoutError):
+    with pytest.raises(ProviderExecutionTimeoutError):
         provider.generate_translation(ctx, "sys", "user")
 
 

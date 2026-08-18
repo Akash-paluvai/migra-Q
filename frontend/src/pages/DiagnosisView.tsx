@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import type { MigrationAssuranceReport } from '../types/migration';
-import { Cpu, Search, HelpCircle, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Cpu, Search, HelpCircle, ShieldCheck } from 'lucide-react';
 import { fetchApi } from '../api/client';
+import { SkippedStageCard } from '../components/SkippedStageCard';
 
 interface DiagnosisViewProps {
   report: MigrationAssuranceReport;
@@ -37,18 +38,54 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
     return () => { isMounted = false; };
   }, [report]);
 
-  if (!summary && (!discSummary || discSummary.discrepancy_count === 0)) {
+  // Case 1: Translation or Execution failed before validation
+  if (report.final_status === 'FAILED' && (!summary || !summary.diagnosis_id)) {
     return (
-      <div>
-        <div className="card-panel">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#15803D' }}>
-            <CheckCircle2 size={24} />
-            <div>
-              <h3>ZERO DISCREPANCIES DETECTED</h3>
-              <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>
-                Source and target query executions yielded 100% identical outputs and schema structures. No AI diagnosis required.
-              </p>
-            </div>
+      <div className="card-panel" style={{ padding: '32px', textAlign: 'center' }}>
+        <h3 style={{ color: '#64748B', marginBottom: '8px' }}>Diagnosis Not Applicable</h3>
+        <p style={{ color: '#94A3B8', fontSize: '14px', maxWidth: '500px', margin: '0 auto' }}>
+          AI Diagnosis was NOT RUN because upstream translation or execution failed.
+        </p>
+      </div>
+    );
+  }
+
+  // Case 2: Validation passed with 0 discrepancies
+  const isPassWithoutDiscrepancies = report.validation_summary?.overall_status === 'PASS' && (!discSummary || discSummary.discrepancy_count === 0);
+  
+  if (isPassWithoutDiscrepancies || summary?.status === 'NOT_REQUIRED') {
+    return (
+      <SkippedStageCard
+        title="AI DIAGNOSIS NOT REQUIRED"
+        stageName="Diagnosis"
+        description="Semantic validation completed successfully. No discrepancies were detected, so AI diagnosis was intentionally not invoked."
+        reason="No semantic drift was detected during deterministic source-vs-target validation. 100% of rows matched identically."
+        upstreamLink={`/migrations/${report.migration_id}/validation`}
+        upstreamLinkLabel="View Validation Evidence"
+        metrics={[
+          { label: 'Discrepancies', value: 0 },
+          { label: 'Validation Status', value: report.validation_summary?.overall_status || 'PASS' },
+          { label: 'Diagnosis', value: 'SKIPPED' },
+          { label: 'Repair', value: 'SKIPPED' },
+          { label: 'Verification', value: 'SKIPPED' }
+        ]}
+      />
+    );
+  }
+
+  // Case 3: Validation found discrepancies but Diagnosis hasn't run yet
+  const isPending = (!summary || !summary.diagnosis_id) && report.final_status !== 'FAILED';
+  
+  if (isPending) {
+    return (
+      <div className="card-panel">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#D97706' }}>
+          <HelpCircle size={24} />
+          <div>
+            <h3>AI DIAGNOSIS PENDING</h3>
+            <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>
+              Diagnosis will run after semantic validation detects a repairable discrepancy.
+            </p>
           </div>
         </div>
       </div>
@@ -96,7 +133,7 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '24px' }}>
           {/* Section 1: Observed Change */}
           <div className="card-panel" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#2563EB' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent-primary)' }}>
               <Search size={18} />
               <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Observed Behavior Change</h4>
             </div>
@@ -107,7 +144,7 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
 
           {/* Section 2: Likely Mechanism */}
           <div className="card-panel" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#2563EB' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent-primary)' }}>
               <Cpu size={18} />
               <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Likely Mechanism</h4>
             </div>
@@ -118,7 +155,7 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
 
           {/* Section 3: Possible Cause */}
           <div className="card-panel" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#2563EB' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent-primary)' }}>
               <ShieldCheck size={18} />
               <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Possible Cause</h4>
             </div>

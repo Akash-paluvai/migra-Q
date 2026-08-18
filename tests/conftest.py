@@ -5,6 +5,7 @@ import os
 import pytest
 
 from backend.core.config import settings
+import backend.core.dialects  # noqa: F401 (Registers Netezza globally for tests)
 
 os.environ["APP_ENV"] = "test"
 os.environ["PERSISTENCE_MODE"] = "memory"

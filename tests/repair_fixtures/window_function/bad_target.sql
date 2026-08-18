@@ -1,0 +1,1 @@
+SELECT account_id, ROW_NUMBER() OVER(PARTITION BY customer_id ORDER BY balance DESC) AS rnk FROM accounts

@@ -27,8 +27,8 @@ class TestMigrationStateEnum:
 
 
 class TestMigrationFinalStatusEnum:
-    def test_all_5_statuses(self):
-        assert len(MigrationFinalStatus) == 5
+    def test_all_6_statuses(self):
+        assert len(MigrationFinalStatus) == 6
 
     def test_no_safe_or_production_ready(self):
         values = {s.value for s in MigrationFinalStatus}

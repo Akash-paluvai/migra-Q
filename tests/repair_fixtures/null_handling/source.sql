@@ -1,0 +1,1 @@
+SELECT product_id, COALESCE(list_price, 0.0) AS price FROM product_catalog

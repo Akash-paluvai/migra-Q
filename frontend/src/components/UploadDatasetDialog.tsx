@@ -57,113 +57,102 @@ export const UploadDatasetDialog: React.FC<UploadDatasetDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="modal-overlay">
+      <div className="modal-content">
         {/* Header */}
-        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <Upload className="w-5 h-5" />
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="icon-box">
+              <Upload size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-slate-100">Upload New Dataset</h2>
-              <p className="text-xs text-slate-400">Supports .csv, .parquet, or .zip containing data files</p>
+              <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Upload New Dataset</h2>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Supports .csv, .parquet, or .zip containing data files</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="btn-icon-only">
+            <X size={20} />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="modal-body">
           {error && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start space-x-3 text-red-400 text-xs font-mono">
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div style={{ padding: '16px', borderRadius: '8px', backgroundColor: 'var(--status-fail-bg)', border: '1px solid var(--status-fail-border)', display: 'flex', gap: '8px', alignItems: 'flex-start', color: 'var(--status-fail-text)', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>
+              <AlertTriangle size={16} style={{ marginTop: '2px', flexShrink: 0 }} />
               <span>{error}</span>
             </div>
           )}
 
           {/* File Select */}
-          <div>
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-2">
-              Dataset File (.csv, .parquet, .zip)
-            </label>
-            <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-xl p-6 text-center cursor-pointer transition-colors bg-slate-950/40 relative">
+          <div className="form-group">
+            <label className="form-label">Dataset File (.csv, .parquet, .zip)</label>
+            <div className="file-drop-area">
               <input
                 type="file"
                 accept=".csv,.parquet,.zip"
                 onChange={handleFileSelect}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                className="file-drop-input"
               />
-              <FileText className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+              <FileText size={32} style={{ color: 'var(--text-muted)', margin: '0 auto 8px auto', display: 'block' }} />
               {file ? (
-                <div className="text-emerald-400 font-medium text-sm flex items-center justify-center space-x-2">
-                  <CheckCircle className="w-4 h-4" />
+                <div style={{ color: 'var(--accent-primary)', fontWeight: 500, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  <CheckCircle size={16} />
                   <span>{file.name}</span>
-                  <span className="text-slate-500 text-xs font-mono">
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
                     ({(file.size / (1024 * 1024)).toFixed(2)} MB)
                   </span>
                 </div>
               ) : (
-                <div className="text-slate-400 text-xs">
-                  <span className="font-semibold text-slate-200">Click to upload</span> or drag and drop
-                  <p className="text-slate-500 mt-1">Maximum file size: 50MB</p>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Click to upload</span> or drag and drop
+                  <p style={{ color: 'var(--text-muted)', marginTop: '4px' }}>Maximum file size: 50MB</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* Display Name */}
-          <div>
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1">
-              Display Name
-            </label>
+          <div className="form-group">
+            <label className="form-label">Display Name</label>
             <input
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="e.g. Q3 Customer Transactions"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+              className="form-input"
             />
           </div>
 
           {/* Description */}
-          <div>
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1">
-              Description (Optional)
-            </label>
+          <div className="form-group">
+            <label className="form-label">Description (Optional)</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
               placeholder="Optional summary of dataset contents..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+              className="form-input"
+              style={{ resize: 'vertical' }}
             />
           </div>
 
           {/* Actions */}
-          <div className="pt-4 flex items-center justify-end space-x-3 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors"
-            >
+          <div className="modal-footer">
+            <button type="button" onClick={onClose} className="btn-secondary">
               Cancel
             </button>
             <button
               type="submit"
               disabled={uploading || !file}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 shadow-lg shadow-emerald-950/50"
+              className="btn-primary"
+              style={{ opacity: (uploading || !file) ? 0.5 : 1, cursor: (uploading || !file) ? 'not-allowed' : 'pointer' }}
             >
               {uploading ? (
                 <span>Uploading...</span>
               ) : (
                 <>
-                  <Upload className="w-4 h-4" />
+                  <Upload size={16} />
                   <span>Upload & Register</span>
                 </>
               )}
@@ -172,7 +161,7 @@ export const UploadDatasetDialog: React.FC<UploadDatasetDialogProps> = ({
         </form>
 
         {uploading && (
-          <div className="p-4 border-t border-slate-800 bg-slate-950/80">
+          <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}>
             <LoadingState message="Inspecting schemas and computing dataset hash..." />
           </div>
         )}

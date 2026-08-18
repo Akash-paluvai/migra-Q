@@ -22,7 +22,7 @@ export const LineageTimeline: React.FC<LineageTimelineProps> = ({ lineage }) => 
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div style={{ fontSize: '14px', fontWeight: 600, color: '#0F172A' }}>
-          Verification Path: <span style={{ color: '#2563EB' }}>{lineage.verification_path}</span>
+          Verification Path: <span style={{ color: 'var(--accent-primary)' }}>{lineage.verification_path}</span>
         </div>
         <div style={{ fontSize: '12px', fontWeight: 600, color: lineage.is_complete ? '#15803D' : '#D97706' }}>
           {lineage.is_complete ? '✓ Lineage Chain Complete & Proven' : '⚠ Lineage Incomplete'}
@@ -54,13 +54,13 @@ export const LineageTimeline: React.FC<LineageTimelineProps> = ({ lineage }) => 
                 height: '24px',
                 borderRadius: '50%',
                 backgroundColor: '#FFFFFF',
-                border: '2px solid #2563EB',
+                border: '2px solid var(--accent-primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <GitCommit size={12} color="#2563EB" />
+              <GitCommit size={12} color="var(--accent-primary)" />
             </div>
 
             <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '12px 16px' }}>

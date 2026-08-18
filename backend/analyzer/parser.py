@@ -6,6 +6,7 @@ import sqlglot
 from sqlglot import exp
 
 from backend.core.exceptions import ParserError
+import backend.core.dialects  # noqa: F401 (Registers Netezza with SQLGlot)
 
 
 def parse_sql(sql: str, dialect: str = "teradata") -> exp.Expression:

@@ -107,12 +107,14 @@ class DiagnosisAIService:
         # 3. Provider Selection
         provider_type = (provider_name or settings.LLM_PROVIDER).lower()
         provider: AIDiagnosisProvider
-        if mock_mode or provider_type == "mock":
+        if mock_mode or provider_type.startswith("mock"):
             mode = mock_mode if (mock_mode and mock_mode.startswith("MOCK_")) else "MOCK_BOUNDARY_REPAIR"
+            if provider_type == "mock_regression":
+                mode = "MOCK_REGRESSION"
             if mode == "MOCK_BOUNDARY_BUG":
                 mode = "MOCK_BOUNDARY_REPAIR"
             provider = MockDiagnosisProvider(mode=mode)
-            p_name = "mock"
+            p_name = provider_type
             p_model = mode
         elif provider_type in ("openai", "openrouter", "groq"):
             provider = OpenAIDiagnosisProvider()
@@ -124,11 +126,60 @@ class DiagnosisAIService:
             p_model = "MOCK_BOUNDARY_REPAIR"
 
         # 4. Generate Provider Response
-        ai_resp, raw_resp = provider.generate_diagnosis_and_repair(
-            system_prompt=SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            context=context,
-        )
+        try:
+            ai_resp, raw_resp = provider.generate_diagnosis_and_repair(
+                system_prompt=SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                context=context,
+            )
+        except Exception as e:
+            # Handle all Provider errors gracefully
+            if type(e).__name__ == "ProviderTokenExhaustionError":
+                error_code = "PROVIDER_TOKEN_EXHAUSTED"
+            elif type(e).__name__ == "ProviderExecutionTimeoutError":
+                error_code = "PROVIDER_TIMEOUT"
+            elif type(e).__name__ == "NonRetryableProviderError":
+                error_code = "INVALID_STRUCTURED_OUTPUT" if "json_validate_failed" in str(e) else "LLM_PROVIDER_ERROR"
+            elif type(e).__name__ == "RateLimitError":
+                error_code = "LLM_RATE_LIMIT"
+            elif type(e).__name__ == "TransientProviderError":
+                error_code = "LLM_TRANSIENT_ERROR"
+            else:
+                error_code = "LLM_PROVIDER_ERROR"
+                
+            meta = DiagnosisAIMetadata(
+                diagnosis_id=diagnosis_id,
+                discrepancy_id=discrepancy_id,
+                provider=p_name,
+                model=p_model,
+                context_hash=context.context_hash,
+                prompt_hash=prompt_hash,
+                created_at=created_at,
+                duration_ms=0.0,
+                error_code=error_code,
+                error_message=str(e),
+            )
+            diag = AIDiagnosis(
+                diagnosis_id=diagnosis_id,
+                discrepancy_id=discrepancy_id,
+                status=DiagnosisStatus.FAILED,
+                observed_change="Provider error.",
+                likely_mechanism="",
+                possible_cause=str(e),
+                uncertainty="Failed to retrieve AI diagnosis.",
+            )
+            rep = RepairProposal(
+                repair_id=repair_id,
+                discrepancy_id=discrepancy_id,
+                status=RepairStatus.FAILED,
+                original_sql=target_sql,
+                proposed_sql="",
+                rationale="No AI output available.",
+                expected_effect="",
+            )
+            result = DiagnosisAIResult(metadata=meta, diagnosis=diag, repair_proposal=rep)
+            save_diagnosis_ai_result(result, db_session)
+            return result
 
         # 5. Evidence Grounding Check
         grounded, ground_msg = EvidenceGroundingValidator.validate_grounding(
@@ -152,6 +203,7 @@ class DiagnosisAIService:
                 total_token_count=raw_resp.total_tokens,
                 error_code="UNGROUNDED_CLAIM",
                 error_message=ground_msg,
+                retry_count=raw_resp.provider_attempts - 1 if raw_resp.provider_attempts > 0 else 0,
             )
             diag = AIDiagnosis(
                 diagnosis_id=diagnosis_id,
@@ -183,7 +235,7 @@ class DiagnosisAIService:
 
         # 6. Candidate Repair Checks (Syntax, Read-only, Contract, Scope)
         proposed_sql = ai_resp.proposed_sql or ""
-        changed_region = ai_resp.changed_region or analysis_path or "columns[target]"
+        strict_changed_region = analysis_path if analysis_path else (",".join(affected_columns) if affected_columns else "columns[target]")
 
         repair_status = RepairStatus.PROPOSED
         diag_status = DiagnosisStatus.DIAGNOSED
@@ -203,6 +255,8 @@ class DiagnosisAIService:
                 target_dialect=target_dialect,
             )
             if not syn_valid:
+                from backend.core.logging import get_logger
+                get_logger(__name__).error(f"Repair Syntax Validation Failed: {syn_msg}")
                 repair_status = RepairStatus.FAILED
                 scope_valid = False
 
@@ -214,6 +268,8 @@ class DiagnosisAIService:
                     target_dialect=target_dialect,
                 )
                 if not contract_valid:
+                    from backend.core.logging import get_logger
+                    get_logger(__name__).error(f"Repair Contract Validation Failed: {contract_msg}")
                     repair_status = RepairStatus.FAILED
 
             # C. AST Repair Scope Check
@@ -222,9 +278,11 @@ class DiagnosisAIService:
                     original_sql=target_sql,
                     proposed_sql=proposed_sql,
                     target_dialect=target_dialect,
-                    changed_region=changed_region,
+                    changed_region=ai_resp.changed_region or strict_changed_region,
                 )
                 if not scope_valid:
+                    from backend.core.logging import get_logger
+                    get_logger(__name__).error(f"Repair Scope Check Failed: {scope_msg}")
                     repair_status = RepairStatus.FAILED
 
             # D. Effective Change Check (Must not be identical to candidate SQL)
@@ -234,6 +292,8 @@ class DiagnosisAIService:
                     proposed_sql=proposed_sql,
                 )
                 if not diff_valid:
+                    from backend.core.logging import get_logger
+                    get_logger(__name__).error(f"Repair Effective Change Check Failed: {diff_msg}")
                     repair_status = RepairStatus.FAILED
                     scope_valid = False
 
@@ -260,6 +320,7 @@ class DiagnosisAIService:
             input_token_count=raw_resp.input_tokens,
             output_token_count=raw_resp.output_tokens,
             total_token_count=raw_resp.total_tokens,
+            retry_count=raw_resp.provider_attempts - 1 if raw_resp.provider_attempts > 0 else 0,
         )
 
         diag = AIDiagnosis(
@@ -281,7 +342,7 @@ class DiagnosisAIService:
             status=repair_status,
             original_sql=target_sql,
             proposed_sql=proposed_sql if repair_status == RepairStatus.PROPOSED else "",
-            changed_region=changed_region,
+            changed_region=ai_resp.changed_region or strict_changed_region,
             changes=ai_resp.changes if repair_status == RepairStatus.PROPOSED else [],
             rationale=ai_resp.repair_rationale or "",
             expected_effect=ai_resp.expected_effect or "",

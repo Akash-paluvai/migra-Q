@@ -17,11 +17,11 @@ export const SqlDiffViewer: React.FC<SqlDiffViewerProps> = ({
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
       {/* Original Candidate */}
-      <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', minWidth: 0 }}>
         <div style={{ backgroundColor: '#FEF2F2', color: '#991B1B', padding: '8px 16px', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid #FCA5A5' }}>
           BEFORE REPAIR (INCORRECT CANDIDATE)
         </div>
-        <pre className="code-panel" style={{ margin: 0 }}>
+        <pre className="code-panel" style={{ margin: 0, overflowX: 'auto' }}>
           <code>
             {diffHighlight ? (
               originalSql.split(diffHighlight.originalExpression).map((part, i, arr) => (
@@ -40,11 +40,11 @@ export const SqlDiffViewer: React.FC<SqlDiffViewerProps> = ({
       </div>
 
       {/* Repaired Candidate */}
-      <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', minWidth: 0 }}>
         <div style={{ backgroundColor: '#F0FDF4', color: '#166534', padding: '8px 16px', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid #86EFAC' }}>
           AFTER REPAIR (REPAIRED PROPOSAL)
         </div>
-        <pre className="code-panel" style={{ margin: 0 }}>
+        <pre className="code-panel" style={{ margin: 0, overflowX: 'auto' }}>
           <code>
             {diffHighlight ? (
               repairedSql.split(diffHighlight.repairedExpression).map((part, i, arr) => (

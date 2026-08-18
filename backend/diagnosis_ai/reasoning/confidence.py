@@ -14,7 +14,7 @@ def compute_diagnosis_confidence(evidence_pack: EvidencePack) -> float:
         score += 0.15
     if "TARGET_EXPRESSION" in item_types:
         score += 0.15
-    if "DISCREPANCY_IMPACT" in item_types and evidence_pack.affected_row_count > 0:
+    if "DISCREPANCY_IMPACT" in item_types and evidence_pack.affected_row_count is not None and evidence_pack.affected_row_count > 0:
         score += 0.10
     if "REPRESENTATIVE_EXAMPLE" in item_types:
         score += 0.08

@@ -259,12 +259,28 @@ class MigrationAssuranceService:
 
         # If translation or execution failed, provide explicit technical failure reason
         if translation_result.status != TranslationStatus.SUCCESS:
-            final_status = MigrationFinalStatus.FAILED
-            err_msg = translation_result.metadata.error_message or translation_result.validation_summary or translation_result.status.value
-            decision_reason = f"Assurance evaluation could not be completed because translation failed: {err_msg}"
+            err_code = translation_result.metadata.error_code if translation_result.metadata else None
+            err_msg = translation_result.metadata.error_message if translation_result.metadata else translation_result.validation_summary or translation_result.status.value
+            if err_code == "PROVIDER_TOKEN_EXHAUSTED":
+                final_status = MigrationFinalStatus.BLOCKED_PROVIDER_LIMIT
+                decision_reason = "LLM provider daily token limit exhausted."
+            elif err_code == "PROVIDER_TIMEOUT":
+                final_status = MigrationFinalStatus.FAILED
+                decision_reason = "LLM provider request timed out."
+            else:
+                final_status = MigrationFinalStatus.FAILED
+                decision_reason = f"Assurance evaluation could not be completed because translation failed: {err_msg}"
         elif source_execution is None or target_execution is None or not (source_succeeded and target_succeeded):
             final_status = MigrationFinalStatus.FAILED
             decision_reason = "Assurance evaluation could not be completed because execution failed."
+        elif diagnosis_ai_result and diagnosis_ai_result.metadata.error_code in ("PROVIDER_TOKEN_EXHAUSTED", "PROVIDER_TIMEOUT"):
+            err_code = diagnosis_ai_result.metadata.error_code
+            if err_code == "PROVIDER_TOKEN_EXHAUSTED":
+                final_status = MigrationFinalStatus.BLOCKED_PROVIDER_LIMIT
+                decision_reason = "LLM provider daily token limit exhausted during diagnosis."
+            else:
+                final_status = MigrationFinalStatus.FAILED
+                decision_reason = "LLM provider request timed out during diagnosis."
 
         # 10. Validate State Consistency
         ArtifactStateConsistencyValidator.validate_full_pipeline_state(
@@ -440,7 +456,7 @@ class MigrationAssuranceService:
                 target_dialect=target_dialect,
                 affected_row_count=primary_disc.affected_row_count,
                 affected_percentage=primary_disc.affected_percentage,
-                affected_columns=primary_disc.affected_columns,
+                affected_columns=primary_disc.affected_output_columns,
                 validation_id=val_report.validation_id,
                 translation_id=trans_res.metadata.translation_id,
                 mock_mode=mock_mode,
@@ -457,7 +473,7 @@ class MigrationAssuranceService:
                 )
 
         # 7. Assurance & Audit Lineage
-        source_hash = hashlib.sha256(source_sql.encode()).hexdigest()[:16]
+        source_hash = src_ana.sql_hash if src_ana else hashlib.sha256(source_sql.encode()).hexdigest()[:16]
         migration = self.create_migration(
             source_dialect=source_dialect,
             target_dialect=target_dialect,
@@ -547,6 +563,7 @@ class MigrationAssuranceService:
         mapping = {
             MigrationFinalStatus.VERIFIED: MigrationState.VERIFIED,
             MigrationFinalStatus.BLOCKED: MigrationState.BLOCKED,
+            MigrationFinalStatus.BLOCKED_PROVIDER_LIMIT: MigrationState.FAILED,
             MigrationFinalStatus.FAILED: MigrationState.FAILED,
             MigrationFinalStatus.ERROR: MigrationState.ERROR,
             MigrationFinalStatus.IN_PROGRESS: MigrationState.VALIDATING,

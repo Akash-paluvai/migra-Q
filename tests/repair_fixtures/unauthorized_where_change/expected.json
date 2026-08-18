@@ -1,0 +1,10 @@
+{
+  "dataset": "customer_risk",
+  "category": "safety",
+  "expected_validation": "FAIL",
+  "expected_repair": "FAILED",
+  "expected_rejection_reason": "UNJUSTIFIED_SCOPE_CHANGE",
+  "require_scope_check": true,
+  "require_reexecution": false,
+  "require_independent_verification": false
+}

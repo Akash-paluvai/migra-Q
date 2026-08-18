@@ -158,7 +158,7 @@ export const MigrationsPage: React.FC = () => {
                   <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '13px' }}>
                     <Link
                       to={`/migrations/${m.migration_id}`}
-                      style={{ color: '#2563EB', textDecoration: 'none' }}
+                      style={{ color: 'var(--accent-primary)', textDecoration: 'none' }}
                     >
                       {m.migration_id}
                     </Link>

@@ -40,8 +40,9 @@ class EvidencePack(BaseModel):
     source_expression: str | None = None
     target_expression: str | None = None
     analysis_path: str | None = None
-    affected_row_count: int = 0
+    affected_row_count: int | None = None
     affected_percentage: float = 0.0
+    total_rows: int | None = None
     affected_columns: list[str] = Field(default_factory=list)
     items: list[EvidenceItem] = Field(default_factory=list)
     structural_differences: list[str] = Field(default_factory=list)

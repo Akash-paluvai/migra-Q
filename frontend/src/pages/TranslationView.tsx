@@ -3,6 +3,7 @@ import type { MigrationAssuranceReport } from '../types/migration';
 import { CodePanel } from '../components/CodePanel';
 import { fetchApi } from '../api/client';
 import { XCircle } from 'lucide-react';
+import { format } from 'sql-formatter';
 
 interface TranslationViewProps {
   report: MigrationAssuranceReport;
@@ -219,12 +220,12 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
           <CodePanel
             title={`SOURCE SQL (${(data.source_dialect || 'SOURCE').toUpperCase()})`}
-            code={data.source_sql || '-- Source SQL unavailable'}
+            code={data.source_sql ? (() => { try { return format(data.source_sql); } catch(e) { return data.source_sql; } })() : '-- Source SQL unavailable'}
           />
 
           <CodePanel
             title={`TARGET SQL CANDIDATE (${(data.target_dialect || 'TARGET').toUpperCase()})`}
-            code={data.target_sql || (isFailed ? `-- Target SQL candidate unavailable due to translation failure (${data.status})` : '-- Candidate target SQL unavailable')}
+            code={data.target_sql ? (() => { try { return format(data.target_sql); } catch(e) { return data.target_sql; } })() : (isFailed ? `-- Target SQL candidate unavailable due to translation failure (${data.status})` : '-- Candidate target SQL unavailable')}
           />
         </div>
       </div>
@@ -243,7 +244,7 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
           </div>
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Source SQL Hash</div>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#2563EB', marginTop: '4px' }}>{data.source_sql_hash || 'SHA256'}</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-primary)', marginTop: '4px' }}>{data.source_sql_hash || 'SHA256'}</div>
           </div>
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Normalized SQL Hash</div>

@@ -132,7 +132,7 @@ def test_regression_d_same_row_mismatch_different_rule_not_merged():
     assert len(report) == 2
     boundary_disc = [d for d in report if d.category == DiscrepancyCategory.BOUNDARY_CONDITION][0]
     assert boundary_disc.affected_output_columns == ["risk_class"]
-    assert boundary_disc.affected_row_count == 0  # Row mismatch was on total_amount, not merged!
+    assert boundary_disc.affected_row_count in (0, None)  # Row mismatch was on total_amount, not merged!
 
 
 def test_regression_e_structural_rule_diff_unrelated_row_mismatch_separate():

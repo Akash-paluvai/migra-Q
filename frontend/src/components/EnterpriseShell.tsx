@@ -15,9 +15,9 @@ export const EnterpriseShell: React.FC<EnterpriseShellProps> = ({ children }) =>
       <header className="top-nav">
         <div className="nav-brand">
           <Link to="/" className="brand-container">
-            <ShieldCheck size={26} color="#2563EB" />
-            <span className="brand-logo-text">MIGRA-Q</span>
-            <span className="brand-tagline">AI-Assisted Migration & Semantic Assurance</span>
+            <ShieldCheck size={28} style={{ color: 'var(--accent-primary)' }} />
+            <span className="brand-logo-text" style={{ color: 'var(--text-primary)' }}>MIGRA-Q</span>
+            <span className="brand-tagline">AI Data Modernization</span>
           </Link>
         </div>
 
@@ -41,7 +41,7 @@ export const EnterpriseShell: React.FC<EnterpriseShellProps> = ({ children }) =>
             <Database size={12} style={{ display: 'inline', marginRight: 4 }} />
             Profile: dev
           </span>
-          <span className="badge-env" style={{ color: '#86EFAC', borderColor: 'rgba(34,197,94,0.3)' }}>
+          <span className="badge-env" style={{ color: 'var(--status-pass-text)', borderColor: 'var(--status-pass-border)', backgroundColor: 'var(--status-pass-bg)' }}>
             <Activity size={12} style={{ display: 'inline', marginRight: 4 }} />
             System Healthy
           </span>

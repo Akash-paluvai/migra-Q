@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Play, Shield, Code, Database, Cpu } from 'lucide-react';
+import { ArrowRight, Play, Shield, Code, Database } from 'lucide-react';
 import { HeroVisual } from '../components/HeroVisual';
 import { getFlagshipMigration } from '../api/migrations';
 
@@ -23,130 +23,149 @@ export const LandingPage: React.FC = () => {
   };
 
   return (
-    <div>
-      {/* Hero Section */}
+    <div style={{ margin: '-32px -32px 0 -32px' }}>
+      {/* Hero Section (Dark Navy) */}
       <section
         style={{
-          backgroundColor: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          borderRadius: '12px',
-          padding: '48px 40px',
-          marginBottom: '40px',
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+          background: 'var(--gradient-hero)',
+          padding: '80px 64px',
+          color: '#FFFFFF',
+          position: 'relative',
+          overflow: 'hidden'
         }}
       >
-        <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#2563EB', marginBottom: '12px' }}>
-          AI-ASSISTED DATA MODERNIZATION CONTROL PLANE
+        <div style={{ position: 'relative', zIndex: 2, maxWidth: '800px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px', color: '#94A3B8', marginBottom: '16px' }}>
+            Platform - MIGRA-Q
+          </div>
+
+          <h1 style={{ fontSize: '48px', fontWeight: 700, lineHeight: 1.2, letterSpacing: '-1px', marginBottom: '24px' }}>
+            MIGRA-Q: AI-Assisted Data Modernization Product Suite
+          </h1>
+
+          <p style={{ fontSize: '18px', color: '#CBD5E1', lineHeight: 1.6, marginBottom: '40px', maxWidth: '600px' }}>
+            Reimagining Enterprise Data Transformation with AI Precision, Deterministic Execution, and Built-in Quality Assurance.
+          </p>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <Link to="/migrations/new" className="btn-primary">
+              Start a Migration
+              <ArrowRight size={18} />
+            </Link>
+
+            <button
+              onClick={handleExploreFlagship}
+              disabled={loadingDemo}
+              className="btn-primary"
+              style={{ backgroundColor: 'transparent', border: '1px solid #FFFFFF' }}
+            >
+              <Play size={16} />
+              {loadingDemo ? 'Loading...' : 'Explore Flagship Demo'}
+            </button>
+          </div>
+
+          {errorMsg && (
+            <div style={{ marginTop: '16px', color: '#FCA5A5', fontSize: '13px', fontWeight: 500 }}>
+              ⚠ {errorMsg}
+            </div>
+          )}
         </div>
-
-        <h1 style={{ fontSize: '40px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15, letterSpacing: '-1px' }}>
-          MIGRA-Q
-        </h1>
-        <div style={{ fontSize: '22px', fontWeight: 600, color: '#334155', marginTop: '6px', marginBottom: '16px' }}>
-          AI-Assisted Migration & Semantic Assurance
-        </div>
-
-        <p style={{ fontSize: '18px', color: '#475569', maxWidth: '800px', lineHeight: 1.6, marginBottom: '8px' }}>
-          "Translate legacy data logic. Verify behavior. Repair with evidence."
-        </p>
-
-        <p style={{ fontSize: '14px', fontStyle: 'italic', color: '#64748B', marginBottom: '28px' }}>
-          "Syntactic success is not semantic correctness."
-        </p>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <Link to="/migrations/new" className="btn-primary" style={{ padding: '12px 24px', fontSize: '15px' }}>
-            Start a Migration
-            <ArrowRight size={18} />
-          </Link>
-
-          <button
-            onClick={handleExploreFlagship}
-            disabled={loadingDemo}
-            className="btn-secondary"
-            style={{ padding: '12px 24px', fontSize: '15px', backgroundColor: '#F8FAFC' }}
-          >
-            <Play size={16} color="#2563EB" />
-            {loadingDemo ? 'Loading Flagship...' : 'Explore Flagship Demo'}
-          </button>
-        </div>
-
-        {errorMsg && (
-          <div style={{ marginTop: '16px', color: '#DC2626', fontSize: '13px', fontWeight: 500 }}>
-            ⚠ {errorMsg}
-          </div>
-        )}
-
-        {/* Custom Hero Workflow Visual */}
-        <HeroVisual />
-      </section>
-
-      {/* Outcome Strip */}
-      <section
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '16px',
-          marginBottom: '40px',
-        }}
-      >
-        {[
-          { title: 'AI-Assisted Candidate Translation', desc: 'Generates dialect-accurate SQL candidates', icon: <Code size={20} color="#2563EB" /> },
-          { title: 'Deterministic Re-Validation', desc: 'Executes sandbox comparison on actual data', icon: <Database size={20} color="#2563EB" /> },
-          { title: 'Evidence-Based Repair', desc: 'Classifies discrepancies and proposes patches', icon: <Cpu size={20} color="#2563EB" /> },
-          { title: 'Audit-Ready Lineage', desc: 'Immutably links translation to verification ID', icon: <Shield size={20} color="#2563EB" /> },
-        ].map((item) => (
-          <div
-            key={item.title}
-            style={{
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #E2E8F0',
-              borderRadius: '8px',
-              padding: '20px',
-            }}
-          >
-            <div style={{ marginBottom: '10px' }}>{item.icon}</div>
-            <div style={{ fontSize: '15px', fontWeight: 600, color: '#0F172A' }}>{item.title}</div>
-            <div style={{ fontSize: '13px', color: '#64748B', marginTop: '4px' }}>{item.desc}</div>
-          </div>
-        ))}
-      </section>
-
-      {/* Platform Capability Sections (01, 02, 03) */}
-      <section>
-        <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#64748B', marginBottom: '16px' }}>
-          PLATFORM CAPABILITIES
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-          {/* Capability 01 */}
-          <div className="card-panel">
-            <div style={{ fontSize: '28px', fontWeight: 800, color: '#2563EB', marginBottom: '12px' }}>01</div>
-            <h3 style={{ fontSize: '20px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>Translate</h3>
-            <p style={{ fontSize: '14px', color: '#475569', lineHeight: 1.6 }}>
-              Convert legacy SQL logic (Teradata, Oracle, Netezza) into target cloud dialects (BigQuery, Snowflake) using dialect-aware structural translation models.
-            </p>
-          </div>
-
-          {/* Capability 02 */}
-          <div className="card-panel">
-            <div style={{ fontSize: '28px', fontWeight: 800, color: '#2563EB', marginBottom: '12px' }}>02</div>
-            <h3 style={{ fontSize: '20px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>Verify</h3>
-            <p style={{ fontSize: '14px', color: '#475569', lineHeight: 1.6 }}>
-              Compare runtime execution behavior rather than relying solely on syntax parsing. Multi-layer validators isolate row mismatches, schema drift, and boundary flaws.
-            </p>
-          </div>
-
-          {/* Capability 03 */}
-          <div className="card-panel">
-            <div style={{ fontSize: '28px', fontWeight: 800, color: '#2563EB', marginBottom: '12px' }}>03</div>
-            <h3 style={{ fontSize: '20px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>Assure</h3>
-            <p style={{ fontSize: '14px', color: '#475569', lineHeight: 1.6 }}>
-              Diagnose semantic discrepancies with AI, apply targeted repairs, and deterministically re-validate 100% reduction through 11 hard quality gates.
-            </p>
-          </div>
+        
+        {/* Abstract Tech Background Pattern (simulating the reference image) */}
+        <div style={{ position: 'absolute', right: '5%', top: '50%', transform: 'translateY(-50%)', opacity: 0.2, pointerEvents: 'none' }}>
+           <Database size={400} color="#FFFFFF" />
         </div>
       </section>
+
+      {/* Main Content Wrapper */}
+      <div style={{ padding: '64px', maxWidth: '1400px', margin: '0 auto' }}>
+        
+        {/* Overview Section */}
+        <section style={{ marginBottom: '80px', display: 'flex', gap: '64px', alignItems: 'center' }}>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '16px' }}>
+              Overview
+            </h2>
+            <p style={{ fontSize: '16px', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '24px' }}>
+              MIGRA-Q is an enterprise-grade AI platform designed to accelerate the modernization and migration of legacy data ecosystems to cloud-native architectures. Leveraging advanced large language models (LLMs), it intelligently extracts business logic, automates code conversion, and performs deterministic reconciliation to enable seamless transformation of legacy workloads.
+            </p>
+            <p style={{ fontSize: '16px', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+              MIGRA-Q supports modernization scenarios such as Teradata to BigQuery migrations, orchestrating a transparent transformation journey across the entire migration lifecycle with a strong focus on predictability, auditability, and built-in data quality.
+            </p>
+          </div>
+          <div style={{ flex: 1 }}>
+             <HeroVisual />
+          </div>
+        </section>
+
+        {/* Key Differentiators */}
+        <section style={{ marginBottom: '80px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '32px' }}>
+            Key Differentiators
+          </h2>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px' }}>
+            {/* Differentiator 1 */}
+            <div className="card-panel" style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+               <div style={{ color: 'var(--accent-primary)' }}>
+                 <Code size={48} strokeWidth={1.5} />
+               </div>
+               <div>
+                 <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '12px' }}>Unified Modernization Engine</h3>
+                 <p style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                   An end-to-end platform that harmonizes logic extraction, code translation, code optimization, pipeline conversion, and historical data reconciliation — streamlining data and application migration across heterogeneous systems.
+                 </p>
+               </div>
+            </div>
+
+            {/* Differentiator 2 */}
+            <div className="card-panel" style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+               <div style={{ color: 'var(--accent-primary)' }}>
+                 <Shield size={48} strokeWidth={1.5} />
+               </div>
+               <div>
+                 <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '12px' }}>Built-in Data Quality Assurance</h3>
+                 <p style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                   Integrated validation modules continuously profile, monitor, and remediate discrepancies through deterministic execution — ensuring trustworthy analytics from day one of migration with strict hard quality gates.
+                 </p>
+               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Platform Capabilities */}
+        <section>
+          <div style={{ fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)', marginBottom: '16px', textAlign: 'center' }}>
+            PLATFORM CAPABILITIES
+          </div>
+          
+          <h2 style={{ fontSize: '32px', fontWeight: 700, textAlign: 'center', marginBottom: '48px' }}>
+            How MIGRA-Q Decides & Validates
+          </h2>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+            {[
+              { num: '01', title: 'AI-Assisted Translation', desc: 'Convert legacy SQL logic into target cloud dialects using dialect-aware structural translation models.' },
+              { num: '02', title: 'Deterministic Re-Validation', desc: 'Compare runtime execution behavior on actual data, isolating row mismatches and boundary flaws.' },
+              { num: '03', title: 'Evidence-Based Repair', desc: 'Diagnose semantic discrepancies with AI and apply targeted patches based on execution evidence.' },
+              { num: '04', title: 'Audit-Ready Assurance', desc: 'Immutably link translations to their verification ID, enforcing 11 hard quality gates for sign-off.' }
+            ].map(cap => (
+              <div key={cap.num} className="card-panel" style={{ position: 'relative', overflow: 'hidden' }}>
+                <div style={{ fontSize: '48px', fontWeight: 800, color: 'var(--bg-tertiary)', position: 'absolute', top: '-10px', right: '10px', zIndex: 0 }}>
+                  {cap.num}
+                </div>
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                  <h3 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '12px' }}>{cap.title}</h3>
+                  <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    {cap.desc}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+      </div>
     </div>
   );
 };

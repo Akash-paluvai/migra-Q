@@ -1,8 +1,9 @@
 import React from 'react';
 import type { MigrationAssuranceReport } from '../types/migration';
 import { SqlDiffViewer } from '../components/SqlDiffViewer';
-import { CheckCircle2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, HelpCircle } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge';
+import { SkippedStageCard } from '../components/SkippedStageCard';
 
 interface RepairViewProps {
   report: MigrationAssuranceReport;
@@ -29,13 +30,32 @@ export const RepairView: React.FC<RepairViewProps> = ({ report }) => {
   // Case 2: Validation passed with 0 discrepancies (no repair needed)
   if (!hasRepair && report.validation_summary?.overall_status === 'PASS') {
     return (
+      <SkippedStageCard
+        title="NO REPAIR REQUIRED"
+        stageName="Repair"
+        description="Target SQL candidate passed all semantic validation gates with 0 discrepancies. Automated repair was not needed."
+        reason="No semantic drift was detected during deterministic validation."
+        upstreamLink={`/migrations/${report.migration_id}/validation`}
+        upstreamLinkLabel="View Validation Evidence"
+        metrics={[
+          { label: 'Discrepancies', value: 0 },
+          { label: 'Validation Status', value: 'PASS' },
+          { label: 'Repair Status', value: 'SKIPPED' }
+        ]}
+      />
+    );
+  }
+
+  // Case 3: No repair proposal generated yet (Pending)
+  if (!hasRepair && report.final_status !== 'FAILED') {
+    return (
       <div className="card-panel">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#15803D' }}>
-          <CheckCircle2 size={24} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#D97706' }}>
+          <HelpCircle size={24} />
           <div>
-            <h3>NO REPAIR REQUIRED</h3>
+            <h3>REPAIR PENDING</h3>
             <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>
-              Target SQL candidate passed all semantic validation gates with 0 discrepancies without needing repair proposals.
+              Repair will run after AI Diagnosis completes successfully.
             </p>
           </div>
         </div>
@@ -43,7 +63,7 @@ export const RepairView: React.FC<RepairViewProps> = ({ report }) => {
     );
   }
 
-  // Case 3: No repair proposal generated
+  // Case 4: No repair proposal generated (Catch all)
   if (!hasRepair || !summary) {
     return (
       <div className="card-panel" style={{ padding: '32px', textAlign: 'center' }}>
@@ -107,7 +127,7 @@ export const RepairView: React.FC<RepairViewProps> = ({ report }) => {
           </div>
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Repair Confidence</div>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#2563EB', marginTop: '4px' }}>{(summary.repair_confidence * 100).toFixed(0)}%</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-primary)', marginTop: '4px' }}>{(summary.repair_confidence * 100).toFixed(0)}%</div>
           </div>
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Target Region</div>

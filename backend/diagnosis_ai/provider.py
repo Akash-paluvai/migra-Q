@@ -10,6 +10,14 @@ import time
 from abc import ABC, abstractmethod
 
 from backend.core.config import settings
+from backend.core.exceptions import (
+    NonRetryableProviderError,
+    ProviderError,
+    ProviderExecutionTimeoutError,
+    ProviderTokenExhaustionError,
+    RateLimitError,
+    TransientProviderError,
+)
 from backend.diagnosis_ai.models import (
     DiagnosisAIResponse,
     DiagnosisContext,
@@ -243,6 +251,80 @@ class MockDiagnosisProvider(AIDiagnosisProvider):
                 ],
             )
 
+        elif self.mode == "MOCK_REGRESSION":
+            fixture_name = getattr(context, "translation_id", None)
+            
+            REPAIR_FIXTURES = {
+                "count_distinct_loss": {
+                    "proposed_sql": "SELECT p.ref_code, COUNT(DISTINCT p.entity_id) AS entity_count FROM primary_entity p LEFT JOIN secondary_entity s ON p.ref_code = s.ref_code GROUP BY p.ref_code",
+                    "changed_region": "columns[entity_count]"
+                },
+                "join_drift": {
+                    "proposed_sql": "SELECT p.ref_code, COUNT(s.detail_id) AS detail_count FROM primary_entity p LEFT JOIN secondary_entity s ON p.ref_code = s.ref_code GROUP BY p.ref_code",
+                    "changed_region": "joins"
+                },
+                "conditional_aggregation": {
+                    "proposed_sql": "SELECT department, SUM(CASE WHEN gate_status = 'PASS' THEN score ELSE 0 END) AS passing_score FROM enterprise_metrics GROUP BY department",
+                    "changed_region": "columns[passing_score]"
+                },
+                "filter_removal": {
+                    "proposed_sql": "SELECT customer_id, SUM(amount) AS total_completed FROM transactions WHERE status = 'COMPLETED' GROUP BY customer_id",
+                    "changed_region": "where"
+                },
+                "null_handling": {
+                    "proposed_sql": "SELECT product_id, COALESCE(list_price, 0.0) AS price FROM product_catalog",
+                    "changed_region": "columns[price]"
+                },
+                "window_function": {
+                    "proposed_sql": "SELECT account_id, RANK() OVER(PARTITION BY customer_id ORDER BY balance DESC) AS rnk FROM accounts",
+                    "changed_region": "columns[rnk]"
+                },
+                "boundary_condition": {
+                    "proposed_sql": "SELECT transaction_id, CASE WHEN amount > 500.0 THEN 'HIGH' ELSE 'LOW' END AS risk_level FROM transactions",
+                    "changed_region": "columns[risk_level]"
+                },
+                "unauthorized_join_change": {
+                    "proposed_sql": "SELECT p.ref_code, SUM(p.base_val) AS total_base FROM primary_entity p LEFT JOIN secondary_entity s ON p.ref_code = s.ref_code GROUP BY p.ref_code",
+                    "changed_region": "columns[total_base]"
+                },
+                "unauthorized_where_change": {
+                    "proposed_sql": "SELECT customer_id, SUM(amount) AS total FROM transactions WHERE status = 'COMPLETED' GROUP BY customer_id",
+                    "changed_region": "columns[total]"
+                },
+                "unrelated_projection_change": {
+                    "proposed_sql": "SELECT product_id, list_price * 10 AS list_price, UPPER(status) AS status FROM product_catalog",
+                    "changed_region": "columns[list_price]"
+                },
+                "already_correct_query": {
+                    "proposed_sql": context.target_sql,
+                    "changed_region": "columns"
+                }
+            }
+
+            fixture = REPAIR_FIXTURES.get(fixture_name, {
+                "proposed_sql": context.target_sql,
+                "changed_region": "unknown"
+            })
+
+            resp = DiagnosisAIResponse(
+                observed_change="Mock deterministic change.",
+                likely_mechanism="Mock deterministic mechanism.",
+                possible_cause="Mock cause.",
+                uncertainty="None",
+                diagnosis_claims=[],
+                proposed_sql=fixture["proposed_sql"],
+                changed_region=fixture["changed_region"],
+                changes=[],
+                repair_rationale="Deterministic regression mock",
+                expected_effect="Mock effect",
+                repair_claims=[
+                    GroundedClaim(
+                        text="Mock claim based on target sql",
+                        evidence_refs=["E-002"]
+                    )
+                ]
+            )
+
         else:  # MOCK_BOUNDARY_REPAIR (Default valid candidate repair)
             resp = DiagnosisAIResponse(
                 observed_change="Target comparison operator changed: target query uses inclusive operator (>= 500.00) instead of strict comparison (> 500).",
@@ -403,8 +485,12 @@ class OpenAIDiagnosisProvider(AIDiagnosisProvider):
 
         max_retries = settings.LLM_MAX_RETRIES
         retry_delay = 2.0  # start with 2 seconds
+        global_timeout_sec = 60.0
 
         for attempt in range(1, max_retries + 1):
+            if (time.perf_counter() - start_time) > global_timeout_sec:
+                raise ProviderExecutionTimeoutError("Global execution timeout exceeded during LLM retries.")
+
             req = urllib.request.Request(
                 url,
                 data=json.dumps(body).encode("utf-8"),
@@ -419,19 +505,79 @@ class OpenAIDiagnosisProvider(AIDiagnosisProvider):
                     input_tokens = usage_data.get("prompt_tokens", 0)
                     output_tokens = usage_data.get("completion_tokens", 0)
                     total_tokens = usage_data.get("total_tokens", 0)
+                    provider_attempts = attempt
                     break  # Success, exit retry loop
             except urllib.error.HTTPError as http_err:
-                if http_err.code == 429 and attempt < max_retries:
-                    time.sleep(retry_delay)
+                if http_err.code in (401, 403):
+                    raise NonRetryableProviderError(f"LLM_AUTH_ERROR: HTTP {http_err.code} Authentication Failed") from http_err
+                
+                elif http_err.code == 400:
+                    error_body = ""
+                    try:
+                        error_body = http_err.read().decode("utf-8")
+                        error_resp = json.loads(error_body)
+                        error_type = error_resp.get("error", {}).get("type", "")
+                        if "json_validate_failed" in error_type:
+                            raise NonRetryableProviderError("json_validate_failed: Schema mismatch") from http_err
+                    except Exception:
+                        pass
+                    raise NonRetryableProviderError(f"HTTP 400 Bad Request: {http_err.reason} - {error_body}") from http_err
+                    
+                elif http_err.code == 429:
+                    error_body = ""
+                    try:
+                        error_body = http_err.read().decode("utf-8")
+                        error_resp = json.loads(error_body)
+                        err_obj = error_resp.get("error", {})
+                        
+                        err_type = err_obj.get("type", "")
+                        err_code = err_obj.get("code", "")
+                        err_message = err_obj.get("message", "").lower()
+                        
+                        is_exhaustion = False
+                        if err_type == "tokens" and "rate_limit_exceeded" in err_code:
+                            if "tokens per day" in err_message or "tpd" in err_message or "quota" in err_message:
+                                is_exhaustion = True
+                        elif "exhausted" in err_message or "limit_exceeded" in err_message or "credits" in err_message:
+                            is_exhaustion = True
+                            
+                        if is_exhaustion:
+                            retry_after_str = http_err.headers.get("retry-after", "0")
+                            r_after = float(retry_after_str) if retry_after_str.replace(".", "").isdigit() else 0.0
+                            raise ProviderTokenExhaustionError(
+                                "LLM provider daily token limit exhausted.",
+                                retry_after=r_after
+                            )
+                    except ProviderTokenExhaustionError:
+                        raise
+                    except Exception:
+                        pass
+                        
+                    if attempt >= max_retries:
+                        raise RateLimitError("HTTP 429 Rate Limit Exceeded (Max Retries Reached)") from http_err
+                        
+                    retry_after = http_err.headers.get("retry-after")
+                    if retry_after and retry_after.replace(".", "").isdigit():
+                        delay = float(retry_after)
+                    else:
+                        delay = retry_delay
+                        
+                    time.sleep(delay)
                     retry_delay *= 2  # Exponential backoff
                     continue
-                raise RuntimeError(f"LLM_DIAGNOSIS_HTTP_ERROR: HTTP {http_err.code}") from http_err
-            except Exception as exc:
-                if attempt < max_retries:
+                    
+                else:
+                    if attempt >= max_retries:
+                        raise TransientProviderError(f"LLM_DIAGNOSIS_HTTP_ERROR: HTTP {http_err.code}") from http_err
                     time.sleep(retry_delay)
                     retry_delay *= 2
                     continue
-                raise RuntimeError(f"LLM_DIAGNOSIS_HTTP_ERROR: {exc}") from exc
+            except Exception as exc:
+                if attempt >= max_retries:
+                    raise TransientProviderError(f"LLM_DIAGNOSIS_HTTP_ERROR: {exc}") from exc
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
 
         duration_ms = (time.perf_counter() - start_time) * 1000.0
 
@@ -441,7 +587,7 @@ class OpenAIDiagnosisProvider(AIDiagnosisProvider):
         try:
             parsed = DiagnosisAIResponse.model_validate_json(cleaned_json)
         except Exception as parse_exc:
-            raise RuntimeError(f"Failed to parse LLM diagnosis JSON: {parse_exc}. Raw text: {raw_json_str[:300]}") from parse_exc
+            raise NonRetryableProviderError(f"Failed to parse LLM diagnosis JSON: {parse_exc}. Raw text: {raw_json_str[:300]}") from parse_exc
 
         raw_resp = RawProviderResponse(
             raw_json=cleaned_json,
@@ -449,6 +595,7 @@ class OpenAIDiagnosisProvider(AIDiagnosisProvider):
             output_tokens=output_tokens,
             total_tokens=total_tokens,
             duration_ms=duration_ms,
+            provider_attempts=provider_attempts,
         )
         return parsed, raw_resp
 

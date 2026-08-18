@@ -49,3 +49,11 @@ logs/
 *.log
 datasets/runtime_results/
 datasets/generated/test_exec/
+
+# Scratch and output
+scratch/
+scratch_*.py
+evidence_output*.json
+extract_evidence.py
+test_sqlglot.py
+

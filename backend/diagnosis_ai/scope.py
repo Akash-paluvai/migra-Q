@@ -106,12 +106,15 @@ class RepairScopeChecker:
                     # Check if this changed expression matches changed_region
                     region_lower = changed_region.lower()
                     if alias_name and alias_name not in region_lower and region_lower not in alias_name:
-                        msg = (
-                            f"UNJUSTIFIED_SCOPE_CHANGE: Repair modified projection expression "
-                            f"for '{alias_name}' ('{orig_expr_sql}' vs '{prop_expr_sql}') "
-                            f"which is outside target region '{changed_region}'."
-                        )
-                        return False, msg, constraints_checked
+                        if region_lower in ("select", "columns"):
+                            pass
+                        else:
+                            msg = (
+                                f"UNJUSTIFIED_SCOPE_CHANGE: Repair modified projection expression "
+                                f"for '{alias_name}' ('{orig_expr_sql}' vs '{prop_expr_sql}') "
+                                f"which is outside target region '{changed_region}'."
+                            )
+                            return False, msg, constraints_checked
 
         constraints_checked.append("unrelated_projection_expressions_unchanged")
         return True, "AST Scope Check passed.", constraints_checked

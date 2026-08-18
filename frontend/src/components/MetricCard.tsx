@@ -41,8 +41,16 @@ export const MetricCard: React.FC<MetricCardProps> = ({
       <div style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748B', marginBottom: '8px' }}>
         {label}
       </div>
-      <div style={{ fontSize: '28px', fontWeight: 700, color: valueColor, letterSpacing: '-0.5px' }}>
-        {typeof value === 'number' ? value.toLocaleString() : value}
+      <div style={{ 
+        fontSize: typeof value === 'string' && value.length > 8 ? '20px' : '28px', 
+        fontWeight: 700, 
+        color: valueColor, 
+        letterSpacing: '-0.5px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis'
+      }}>
+        {typeof value === 'number' ? value.toLocaleString() : (typeof value === 'string' ? value.replace(/_/g, ' ') : value)}
       </div>
       {subtitle && (
         <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>

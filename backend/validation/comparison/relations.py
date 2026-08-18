@@ -6,7 +6,7 @@ from typing import Any
 import duckdb
 import pandas as pd
 
-from backend.validation.comparison.values import compare_values
+from backend.validation.comparison.values import values_equal
 from backend.validation.exceptions import ComparisonKeyError
 from backend.validation.models import EvidenceItem, EvidenceType
 
@@ -103,13 +103,21 @@ def compare_relations(
             s_series = df_src_sorted[col]
             t_series = df_tgt_sorted[col]
 
+            # Vectorized fast check to isolate potential mismatches
             mismatches = s_series != t_series
-            diff_indices = df_src_sorted.index[mismatches]
-            diff_count = len(diff_indices)
+            potential_diff_indices = df_src_sorted.index[mismatches]
+            
+            # Refine mismatches with robust scalar equality
+            actual_diff_indices = []
+            for idx in potential_diff_indices:
+                if not values_equal(s_series.loc[idx], t_series.loc[idx], abs_tol=abs_tol, rel_tol=rel_tol):
+                    actual_diff_indices.append(idx)
+                    
+            diff_count = len(actual_diff_indices)
 
             if diff_count > 0:
                 mismatch_count += diff_count
-                for idx in diff_indices[:max_evidence_items]:
+                for idx in actual_diff_indices[:max_evidence_items]:
                     if len(evidence_items) < max_evidence_items:
                         key_dict = {col_k: str(df_src_sorted.loc[idx, col_k]) for col_k in comparison_keys}
                         evidence_items.append(
@@ -117,10 +125,10 @@ def compare_relations(
                                 type=EvidenceType.VALUE_MISMATCH,
                                 key=key_dict,
                                 column=col,
-                                source_value=str(df_src_sorted.loc[idx, col]),
-                                target_value=str(df_tgt_sorted.loc[idx, col]),
+                                source_value=s_series.loc[idx],
+                                target_value=t_series.loc[idx],
                                 category="VALUE_MISMATCH",
-                                detail=f"Value mismatch in column '{col}': '{df_src_sorted.loc[idx, col]}' vs '{df_tgt_sorted.loc[idx, col]}'",
+                                detail=f"Value mismatch in column '{col}': '{s_series.loc[idx]}' vs '{t_series.loc[idx]}'",
                             )
                         )
             rows_matched = len(df_src_sorted) - diff_count
@@ -191,7 +199,7 @@ def compare_relations(
                     val_s = r_src[col]
                     val_t = r_tgt[col]
 
-                    if not compare_values(val_s, val_t, abs_tol=abs_tol, rel_tol=rel_tol):
+                    if not values_equal(val_s, val_t, abs_tol=abs_tol, rel_tol=rel_tol):
                         row_has_mismatch = True
                         mismatch_count += 1
                         if len(evidence_items) < max_evidence_items:
@@ -200,8 +208,8 @@ def compare_relations(
                                     type=EvidenceType.VALUE_MISMATCH,
                                     key=key_dict,
                                     column=col,
-                                    source_value=str(val_s),
-                                    target_value=str(val_t),
+                                    source_value=val_s,
+                                    target_value=val_t,
                                     category="VALUE_MISMATCH",
                                     detail=f"Column '{col}' mismatch for key {key_dict}.",
                                 )
@@ -269,7 +277,7 @@ def _match_group_rows(
             r_tgt = tgt_rows[j]
             all_match = True
             for col in common_cols:
-                if not compare_values(r_src[col], r_tgt[col], abs_tol=abs_tol, rel_tol=rel_tol):
+                if not values_equal(r_src[col], r_tgt[col], abs_tol=abs_tol, rel_tol=rel_tol):
                     all_match = False
                     break
             if all_match:
@@ -293,7 +301,7 @@ def _match_group_rows(
                 match_count = sum(
                     1
                     for col in common_cols
-                    if compare_values(r_src[col], r_tgt[col], abs_tol=abs_tol, rel_tol=rel_tol)
+                    if values_equal(r_src[col], r_tgt[col], abs_tol=abs_tol, rel_tol=rel_tol)
                 )
                 if match_count > best_match_count:
                     best_match_count = match_count

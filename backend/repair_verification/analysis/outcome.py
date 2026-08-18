@@ -14,12 +14,10 @@ class OutcomeCalculator:
     """Calculates quantitative outcome metrics and builds structured evidence lists."""
 
     @classmethod
-    def calculate_reduction_metrics(
-        cls,
-        rows_before: int,
-        rows_after: int,
-    ) -> tuple[int, float]:
+    def calculate_reduction_metrics(cls, rows_before: int | None, rows_after: int | None) -> tuple[int | None, float]:
         """Calculate reduction count and reduction percentage with zero-division safety."""
+        if rows_before is None or rows_after is None:
+            return 0, 0.0
         if rows_before <= 0:
             return 0, 0.0
 

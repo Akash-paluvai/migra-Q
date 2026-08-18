@@ -30,6 +30,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, label }) => {
       icon = <AlertTriangle size={14} />;
       break;
 
+    case 'BLOCKED_PROVIDER_LIMIT':
+      styleClass = 'status-provider-limit';
+      icon = <AlertTriangle size={14} />;
+      break;
+
     case 'FAILED':
     case 'FAIL':
     case 'ERROR':
