@@ -33,7 +33,7 @@ export const AssuranceView: React.FC<AssuranceViewProps> = ({ report }) => {
         {/* Concept 1: Assurance Score */}
         <div className="card-panel" style={{ marginBottom: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <Award size={20} color="#2563EB" />
+            <Award size={20} color="var(--accent-primary)" />
             <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: '#64748B' }}>
               ASSURANCE SCORE
             </span>
@@ -56,7 +56,7 @@ export const AssuranceView: React.FC<AssuranceViewProps> = ({ report }) => {
         {/* Concept 2: Evidence Coverage */}
         <div className="card-panel" style={{ marginBottom: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <Layers size={20} color="#2563EB" />
+            <Layers size={20} color="var(--accent-primary)" />
             <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: '#64748B' }}>
               EVIDENCE COVERAGE
             </span>

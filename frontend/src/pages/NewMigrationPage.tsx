@@ -243,7 +243,7 @@ export const NewMigrationPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setExplorerOpen(true)}
-                style={{ background: 'none', border: 'none', color: '#2563EB', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}
+                style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}
               >
                 Inspect Schema & Preview Data →
               </button>
@@ -261,7 +261,7 @@ export const NewMigrationPage: React.FC = () => {
               className="btn-secondary"
               style={{ fontSize: '13px', padding: '6px 12px' }}
             >
-              <FileText size={14} color="#2563EB" /> Load Flagship Benchmark Example
+              <FileText size={14} color="var(--accent-primary)" /> Load Flagship Benchmark Example
             </button>
           </div>
 

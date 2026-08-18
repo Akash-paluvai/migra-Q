@@ -127,7 +127,7 @@ export const RepairView: React.FC<RepairViewProps> = ({ report }) => {
           </div>
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Repair Confidence</div>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#2563EB', marginTop: '4px' }}>{(summary.repair_confidence * 100).toFixed(0)}%</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-primary)', marginTop: '4px' }}>{(summary.repair_confidence * 100).toFixed(0)}%</div>
           </div>
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Target Region</div>

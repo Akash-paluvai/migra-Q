@@ -13,7 +13,7 @@ export const CodePanel: React.FC<CodePanelProps> = ({
   height = 'auto',
 }) => {
   return (
-    <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden' }}>
+    <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', minWidth: 0 }}>
       {title && (
         <div
           style={{
@@ -30,7 +30,7 @@ export const CodePanel: React.FC<CodePanelProps> = ({
           {title}
         </div>
       )}
-      <pre className="code-panel" style={{ maxHeight: height, margin: 0 }}>
+      <pre className="code-panel" style={{ maxHeight: height, margin: 0, overflowX: 'auto' }}>
         <code>{code || '-- No SQL content'}</code>
       </pre>
     </div>

@@ -133,7 +133,7 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '24px' }}>
           {/* Section 1: Observed Change */}
           <div className="card-panel" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#2563EB' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent-primary)' }}>
               <Search size={18} />
               <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Observed Behavior Change</h4>
             </div>
@@ -144,7 +144,7 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
 
           {/* Section 2: Likely Mechanism */}
           <div className="card-panel" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#2563EB' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent-primary)' }}>
               <Cpu size={18} />
               <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Likely Mechanism</h4>
             </div>
@@ -155,7 +155,7 @@ export const DiagnosisView: React.FC<DiagnosisViewProps> = ({ report }) => {
 
           {/* Section 3: Possible Cause */}
           <div className="card-panel" style={{ marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#2563EB' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--accent-primary)' }}>
               <ShieldCheck size={18} />
               <h4 style={{ fontSize: '15px', fontWeight: 700 }}>Possible Cause</h4>
             </div>

@@ -47,6 +47,26 @@ export const MigrationWorkspace: React.FC = () => {
 
   useEffect(() => {
     loadData();
+
+    const intervalId = setInterval(async () => {
+      if (!migrationId) return;
+      try {
+        const repData = await getAssuranceReport(migrationId);
+        const recData = await getMigration(migrationId);
+        setReport(repData);
+        setRecord(recData);
+
+        const state = recData.current_state;
+        const isTerminal = ['VERIFIED', 'FAILED', 'BLOCKED', 'ERROR'].includes(state);
+        if (isTerminal) {
+          clearInterval(intervalId);
+        }
+      } catch (err) {
+        clearInterval(intervalId);
+      }
+    }, 3000);
+
+    return () => clearInterval(intervalId);
   }, [migrationId]);
 
   if (loading) {
@@ -134,8 +154,8 @@ export const MigrationWorkspace: React.FC = () => {
                 padding: '10px 16px',
                 fontSize: '14px',
                 fontWeight: isActive ? 600 : 500,
-                color: isActive ? '#2563EB' : '#64748B',
-                borderBottom: isActive ? '2px solid #2563EB' : '2px solid transparent',
+                color: isActive ? 'var(--accent-primary)' : '#64748B',
+                borderBottom: isActive ? '2px solid var(--accent-primary)' : '2px solid transparent',
                 textDecoration: 'none',
                 whiteSpace: 'nowrap',
               }}
@@ -143,7 +163,7 @@ export const MigrationWorkspace: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {tab.label}
                 {tab.isSkipped && (
-                  <span style={{ fontSize: '10px', backgroundColor: isActive ? '#DBEAFE' : '#F1F5F9', color: isActive ? '#1D4ED8' : '#64748B', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                  <span style={{ fontSize: '10px', backgroundColor: isActive ? 'var(--accent-light)' : '#F1F5F9', color: isActive ? 'var(--accent-hover)' : '#64748B', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
                     SKIPPED
                   </span>
                 )}

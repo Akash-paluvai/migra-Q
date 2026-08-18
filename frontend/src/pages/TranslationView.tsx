@@ -244,7 +244,7 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
           </div>
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Source SQL Hash</div>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#2563EB', marginTop: '4px' }}>{data.source_sql_hash || 'SHA256'}</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-primary)', marginTop: '4px' }}>{data.source_sql_hash || 'SHA256'}</div>
           </div>
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Normalized SQL Hash</div>

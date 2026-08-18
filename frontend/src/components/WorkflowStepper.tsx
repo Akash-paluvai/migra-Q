@@ -166,10 +166,10 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ currentState, 
           circleContent = '✓';
           labelColor = '#0F172A';
         } else if (state === 'RUNNING') {
-          circleBg = '#2563EB';
+          circleBg = 'var(--accent-primary)';
           circleColor = '#FFFFFF';
           circleContent = '●';
-          labelColor = '#2563EB';
+          labelColor = 'var(--accent-primary)';
         } else if (state === 'FAILED') {
           circleBg = '#FEE2E2';
           circleColor = '#DC2626';
