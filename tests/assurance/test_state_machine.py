@@ -27,9 +27,9 @@ class TestValidTransitions:
         event = sm.transition("MIG-001", MigrationState.ANALYZING, MigrationState.TRANSLATING, "Analysis complete")
         assert event.to_state == MigrationState.TRANSLATING
 
-    def test_translating_to_executing(self, sm):
-        event = sm.transition("MIG-001", MigrationState.TRANSLATING, MigrationState.EXECUTING, "Translation succeeded")
-        assert event.to_state == MigrationState.EXECUTING
+    def test_translating_to_preflighting(self, sm):
+        event = sm.transition("MIG-001", MigrationState.TRANSLATING, MigrationState.PREFLIGHTING, "Translation succeeded")
+        assert event.to_state == MigrationState.PREFLIGHTING
 
     def test_executing_to_validating(self, sm):
         event = sm.transition("MIG-001", MigrationState.EXECUTING, MigrationState.VALIDATING, "Execution succeeded")

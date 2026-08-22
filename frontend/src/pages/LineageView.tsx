@@ -15,7 +15,7 @@ export const LineageView: React.FC<LineageViewProps> = ({ report }) => {
           Immutably tracks artifact dependencies across all Phase 1–9 execution stages.
         </p>
 
-        <LineageTimeline lineage={report.lineage} />
+        <LineageTimeline lineage={report.lineage} report={report} />
       </div>
     </div>
   );

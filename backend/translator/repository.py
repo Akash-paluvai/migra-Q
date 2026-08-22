@@ -82,11 +82,16 @@ def save_translation_result(
         except Exception:
             db_session.rollback()
     else:
+        db = None
         try:
-            with get_db() as db:
-                _persist(db)
+            from backend.db.database import get_db_session
+            db = get_db_session()
+            _persist(db)
         except Exception:
             pass  # Silent resilience if DB is unavailable in test environment
+        finally:
+            if db:
+                db.close()
 
 
 def get_translation_result(
@@ -108,11 +113,16 @@ def get_translation_result(
         except Exception:
             return None
     else:
+        db = None
         try:
-            with get_db() as db:
-                rec = _query(db)
+            from backend.db.database import get_db_session
+            db = get_db_session()
+            rec = _query(db)
         except Exception:
             return None
+        finally:
+            if db:
+                db.close()
 
     if not rec:
         return None

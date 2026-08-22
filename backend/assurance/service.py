@@ -17,6 +17,7 @@ from backend.assurance.models import (
     MigrationFinalStatus,
     MigrationRecord,
     MigrationState,
+    PreflightSummary,
     VerificationPath,
 )
 from backend.assurance.repository import MigrationAssuranceRepository
@@ -95,9 +96,9 @@ class MigrationAssuranceService:
 
     def evaluate_assurance(
         self,
-        *,
         migration_id: str,
         translation_result: TranslationResult,
+        preflight_summary: PreflightSummary | None = None,
         source_execution: ExecutionResult | None = None,
         target_execution: ExecutionResult | None = None,
         validation_report: ValidationReport | None = None,
@@ -143,9 +144,9 @@ class MigrationAssuranceService:
         execution_summary = self._summary_builder.build_execution_summary(
             source_execution, target_execution
         )
-        validation_summary = self._summary_builder.build_validation_summary(validation_report)
-        discrepancy_summary = self._summary_builder.build_discrepancy_summary(discrepancy_report)
-        diagnosis_summary = self._summary_builder.build_diagnosis_summary(diagnosis_ai_result)
+        val_summary = self._summary_builder.build_validation_summary(validation_report)
+        disc_summary = self._summary_builder.build_discrepancy_summary(discrepancy_report)
+        diag_summary = self._summary_builder.build_diagnosis_summary(diagnosis_ai_result)
 
         repair_proposal = diagnosis_ai_result.repair_proposal if diagnosis_ai_result else None
         repair_summary = self._summary_builder.build_repair_summary(
@@ -168,8 +169,27 @@ class MigrationAssuranceService:
 
         score = self._scorer.calculate(report_for_scoring)
 
-        # 3. Determine repair path
-        repair_attempted = repair_verification_result is not None
+        # 3. Determine verification path
+        validation_passed = (validation_report is not None and validation_report.overall_status == "PASS")
+        repair_attempted = repair_proposal is not None
+        repair_verification_exists = repair_verification_result is not None
+        repair_verified = repair_verification_exists and repair_verification_result.status.value == "VERIFIED"
+        repair_verification_failed = repair_verification_exists and repair_verification_result.status.value in ("FAILED", "FAILED_VERIFICATION")
+
+        if validation_passed:
+            verification_path = VerificationPath.DIRECT_PASS
+        else:
+            if not repair_attempted:
+                verification_path = VerificationPath.REPAIR_NOT_EXECUTED
+            else:
+                if repair_verified:
+                    verification_path = VerificationPath.REPAIRED_PASS
+                elif repair_verification_failed:
+                    verification_path = VerificationPath.REPAIR_FAILED
+                elif repair_proposal.status.value == "FAILED":
+                    verification_path = VerificationPath.REPAIR_FAILED
+                else:
+                    verification_path = VerificationPath.REPAIR_NOT_EXECUTED
 
         # 4. Compute remaining discrepancy count
         if repair_attempted and repair_verification_result is not None:
@@ -199,7 +219,7 @@ class MigrationAssuranceService:
             verification_id=(
                 repair_verification_result.verification_id if repair_verification_result else ""
             ),
-            repair_attempted=repair_attempted,
+            path=verification_path,
         )
 
         # 6. Extract gate inputs
@@ -246,11 +266,7 @@ class MigrationAssuranceService:
             audit_lineage_complete=lineage.is_complete,
         )
 
-        # 8. Determine verification path
-        verification_path = (
-            VerificationPath.REPAIRED_PASS if repair_attempted
-            else VerificationPath.DIRECT_PASS
-        )
+        # 8. Note: Verification path is already determined in step 3
 
         # 9. Determine final status using decision engine
         final_status, decision_reason = self._decision_engine.determine_final_status(
@@ -311,19 +327,24 @@ class MigrationAssuranceService:
             migration_id=migration_id,
             final_status=final_status,
             decision_reason=decision_reason,
-            verification_path=verification_path,
             score=score,
             gate_evaluation=gate_evaluation,
+            verification_path=verification_path,
             translation_summary=translation_summary,
+            preflight_summary=preflight_summary,
             execution_summary=execution_summary,
-            validation_summary=validation_summary,
-            discrepancy_summary=discrepancy_summary,
-            diagnosis_summary=diagnosis_summary,
+            validation_summary=val_summary,
+            discrepancy_summary=disc_summary,
+            diagnosis_summary=diag_summary,
             repair_summary=repair_summary,
             verification_summary=verification_summary,
             lineage=lineage,
             limitations=limitations,
-            metadata={"duration_ms": round(duration_ms, 2)},
+            metadata={
+                "generated_by": "AssuranceService.evaluate_assurance",
+                "version": "1.0",
+                "duration_ms": round(duration_ms, 2),
+            },
         )
 
         # 13. Persist

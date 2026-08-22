@@ -32,7 +32,9 @@ def test_join_semantics_null_nan_regression(assurance_service):
     def mock_translate(*args, **kwargs):
         import hashlib
         req = args[0]
-        sql_hash = hashlib.sha256(req.source_sql.encode('utf-8')).hexdigest()[:16]
+        from backend.analyzer.service import AnalyzerService
+        src_ana = AnalyzerService.analyze(req.source_sql, "oracle")
+        sql_hash = src_ana.sql_hash
         meta = TranslationMetadata(
             translation_id="mock_id",
             request_id="mock_req",
@@ -46,14 +48,12 @@ def test_join_semantics_null_nan_regression(assurance_service):
             prompt_hash="mock",
             created_at="2024-01-01T00:00:00Z"
         )
+        from backend.translator.models import TranslationResponse
+        resp = TranslationResponse(target_sql=req.source_sql)
         return TranslationResult(
             status=TranslationStatus.SUCCESS,
-            source_sql=req.source_sql,
-            translated_sql=req.source_sql,
-            translation_time_ms=100,
-            error_message=None,
-            confidence_score=0.99,
-            metadata=meta
+            metadata=meta,
+            response=resp
         )
     
     with patch("backend.translator.service.TranslationService.translate", side_effect=mock_translate):

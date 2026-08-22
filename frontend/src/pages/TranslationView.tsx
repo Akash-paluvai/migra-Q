@@ -23,6 +23,8 @@ interface CanonicalTranslationData {
   model: string;
   error_message?: string | null;
   normalized_sql_hash?: string;
+  transformations?: any[];
+  transformation_count?: number;
 }
 
 export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
@@ -71,6 +73,8 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
           provider: metadata.provider || report.translation_summary?.provider || 'translator',
           model: metadata.model || report.translation_summary?.model || '',
           error_message: metadata.error_message || rawRes.validation_summary || null,
+          transformations: rawRes.transformations || [],
+          transformation_count: rawRes.transformation_count || 0,
         };
 
         // Enforce universal lineage check on client side
@@ -105,6 +109,8 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
               provider: summary.provider || 'translator',
               model: summary.model || '',
               error_message: report.decision_reason || null,
+              transformations: summary.transformations || [],
+              transformation_count: summary.transformation_count || 0,
             });
           } else {
             setLineageError(`Failed to fetch canonical translation artifact: ${err?.message || err}`);
@@ -144,6 +150,12 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
   const data = translationData!;
   const isFailed = data.status !== 'SUCCESS';
   const candStatus = data.candidate_validation_status || (isFailed ? 'N/A' : 'VALID_SYNTAX');
+
+  const transformations = data?.transformations || [];
+  const actualTransformations = transformations.filter((t: any) => t.type !== 'ASSUMPTION');
+  const actualAssumptions = transformations.filter((t: any) => t.type === 'ASSUMPTION');
+  const numTransformations = actualTransformations.length;
+  const numAssumptions = actualAssumptions.length;
 
   return (
     <div>
@@ -210,6 +222,78 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
             >
               Semantic Status: {data.status}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Explanation Summary */}
+      <div className="card-panel">
+        <h3 style={{ marginBottom: '16px', color: '#0F172A' }}>TRANSLATION SUMMARY</h3>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Source</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', marginTop: '4px' }}>{(data.source_dialect || 'UNKNOWN').toUpperCase()}</div>
+          </div>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Target</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', marginTop: '4px' }}>{(data.target_dialect || 'UNKNOWN').toUpperCase()}</div>
+          </div>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Translation</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: isFailed ? '#DC2626' : '#059669', marginTop: '4px' }}>{data.status}</div>
+          </div>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Semantic Candidate</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: candStatus === 'VALID_SYNTAX' ? '#166534' : '#475569', marginTop: '4px' }}>{candStatus}</div>
+          </div>
+          <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Changes</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', marginTop: '4px' }}>{numTransformations} detected</div>
+          </div>
+        </div>
+
+        {actualTransformations.length > 0 && (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>Detected transformations</div>
+            <ul style={{ margin: 0, paddingLeft: '20px', color: '#475569', fontSize: '13px', lineHeight: 1.6 }}>
+              {actualTransformations.map((t: any, i: number) => (
+                <li key={i} style={{ marginBottom: '8px' }}>
+                  <div style={{ fontWeight: 600 }}>{t.source} → {t.target}</div>
+                  <div style={{ fontSize: '12px', color: '#64748B' }}>{t.occurrences} occurrence{t.occurrences > 1 ? 's' : ''}</div>
+                  {t.explanation && (
+                    <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{t.explanation}</div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {actualAssumptions.length > 0 && (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>Translation assumptions &mdash; {numAssumptions}</div>
+            <ul style={{ margin: 0, paddingLeft: '20px', color: '#475569', fontSize: '13px', lineHeight: 1.6 }}>
+              {actualAssumptions.map((a: any, i: number) => (
+                <li key={i} style={{ marginBottom: '8px' }}>
+                  <div style={{ fontWeight: 600 }}>{a.target}</div>
+                  {a.explanation && a.explanation !== a.target && (
+                    <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{a.explanation}</div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div style={{ backgroundColor: '#F0F9FF', padding: '16px', borderRadius: '8px', border: '1px solid #BAE6FD', marginTop: '20px' }}>
+          <div style={{ fontSize: '13px', color: '#0369A1' }}>
+            <span style={{ fontWeight: 700 }}>Why this matters: </span>
+            {isFailed 
+              ? 'Transformation details unavailable. Translation failed before a target candidate was generated.' 
+              : numTransformations > 0 
+                ? `${numTransformations} dialect-specific transformation${numTransformations !== 1 ? 's were' : ' was'} applied. ${numAssumptions} compatibility assumption${numAssumptions !== 1 ? 's were' : ' was'} recorded and should be considered when reviewing the translation.` 
+                : 'No dialect-specific transformations were reported for this translation.'}
           </div>
         </div>
       </div>

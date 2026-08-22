@@ -42,6 +42,9 @@ class SummaryBuilder:
             provider=translation_result.metadata.provider,
             model=translation_result.metadata.model,
             created_at=translation_result.metadata.created_at,
+            transformations=[t.model_dump() for t in translation_result.transformations],
+            transformation_count=translation_result.transformation_count,
+            assumption_count=translation_result.assumption_count,
         )
 
     def build_execution_summary(
@@ -129,11 +132,15 @@ class SummaryBuilder:
         )
 
     def build_verification_summary(
-        self, result: RepairVerificationResult | None
+        self, result: RepairVerificationResult | None, reason: str | None = None
     ) -> VerificationSummary:
         """Build a VerificationSummary from Phase 8 RepairVerificationResult."""
         if result is None:
-            return VerificationSummary()
+            return VerificationSummary(
+                verification_id=None,
+                status="NOT_EXECUTED",
+                reason=reason or "Verification was not executed.",
+            )
         return VerificationSummary(
             verification_id=result.verification_id,
             status=result.status.value,

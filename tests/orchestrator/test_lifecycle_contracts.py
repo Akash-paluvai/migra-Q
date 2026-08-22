@@ -216,7 +216,7 @@ def test_validation_pass_creates_direct_pass():
     assert report.score.evidence_score is not None
     assert report.score.evidence_score > 0
     assert report.repair_summary.repair_id == ""
-    assert report.verification_summary.verification_id == ""
+    assert report.verification_summary.verification_id is None
 
 
 # ---------------------------------------------------------------------------

@@ -10,12 +10,14 @@ from typing import Any
 
 from backend.analyzer.service import AnalyzerService
 from backend.assurance.service import MigrationAssuranceService
+from backend.assurance.models import MigrationFinalStatus
 from backend.core.logging import get_logger
 from backend.diagnosis.orchestrator import DiagnosisOrchestrator
 from backend.diagnosis_ai.service import DiagnosisAIService
 from backend.execution.models import ExecutionMode, ExecutionRequest, ExecutionStatus
 from backend.execution.service import ExecutionService
 from backend.orchestrator.models import PipelineRunRequest, PipelineRunResult
+from backend.preflight.validator import SchemaPreflightValidator
 from backend.repair_verification.service import RepairVerificationService
 from backend.translator.models import TranslationRequest, TranslationStatus
 from backend.translator.service import TranslationService
@@ -168,6 +170,56 @@ class MigrationOrchestrator:
         candidate_sql = trans_res.response.target_sql
         tgt_analysis = AnalyzerService.analyze(candidate_sql, dialect=target_dialect)
 
+        # STEP 2.5: Schema Preflight
+        logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 2.5: Schema Preflight Validation")
+        preflight_summary = SchemaPreflightValidator.validate(candidate_sql, dataset_id, dialect=target_dialect)
+        
+        if not preflight_summary.execution_allowed:
+            logger.warning(
+                f"[MigrationOrchestrator] [{migration_id}] Schema preflight failed: {preflight_summary.reason}. Halting pipeline."
+            )
+            # Create a partial assurance report reflecting the preflight failure
+            assurance_report = self._assurance_service.evaluate_assurance(
+                migration_id=migration_id,
+                translation_result=trans_res,
+                preflight_summary=preflight_summary,
+                source_execution=None,
+                target_execution=None,
+                validation_report=None,
+                discrepancy_report=None,
+                diagnosis_ai_result=None,
+                repair_verification_result=None,
+            )
+            assurance_report.metadata["profile"] = request.profile
+            # Force status to BLOCKED due to schema mismatch
+            assurance_report.final_status = MigrationFinalStatus.BLOCKED
+            assurance_report.decision_reason = preflight_summary.reason or "Input schema mismatch detected."
+            
+            # Save the report with the updated BLOCKED status
+            from backend.assurance.repository import AssuranceRepository
+            AssuranceRepository.save_assurance_report(assurance_report)
+            
+            updated_record = self._assurance_service.get_migration(migration_id)
+            # The background worker or service might need final_status updated directly too, though update_state doesn't set it immediately, it will be mapped.
+            if updated_record:
+                updated_record.final_status = MigrationFinalStatus.BLOCKED
+                from backend.db.database import get_db_session
+                from backend.db.models import MigrationRecordModel
+                db = get_db_session()
+                try:
+                    db.query(MigrationRecordModel).filter(MigrationRecordModel.migration_id == migration_id).update({"final_status": "BLOCKED"})
+                    db.commit()
+                finally:
+                    db.close()
+
+            final_record = updated_record if updated_record else migration_record
+
+            return PipelineRunResult(
+                migration_id=final_record.migration_id,
+                migration_record=final_record,
+                assurance_report=assurance_report,
+            )
+
         # STEP 3: Phase 3 Execution — DuckDB Execution Sandbox
         logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 3/8: Phase 3 DuckDB Execution Sandbox")
         src_exec = ExecutionService.execute(
@@ -203,6 +255,7 @@ class MigrationOrchestrator:
             assurance_report = self._assurance_service.evaluate_assurance(
                 migration_id=migration_id,
                 translation_result=trans_res,
+                preflight_summary=preflight_summary,
                 source_execution=src_exec,
                 target_execution=tgt_exec,
                 validation_report=None,
@@ -293,6 +346,7 @@ class MigrationOrchestrator:
         assurance_report = self._assurance_service.evaluate_assurance(
             migration_id=migration_id,
             translation_result=trans_res,
+            preflight_summary=preflight_summary,
             source_execution=src_exec,
             target_execution=tgt_exec,
             validation_report=val_report,

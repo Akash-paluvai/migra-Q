@@ -7,6 +7,7 @@ export type MigrationState =
   | 'CREATED'
   | 'ANALYZING'
   | 'TRANSLATING'
+  | 'PREFLIGHTING'
   | 'EXECUTING'
   | 'VALIDATING'
   | 'DISCREPANCIES_FOUND'
@@ -25,7 +26,7 @@ export type MigrationFinalStatus =
   | 'IN_PROGRESS'
   | 'ERROR';
 
-export type VerificationPath = 'DIRECT_PASS' | 'REPAIRED_PASS';
+export type VerificationPath = 'DIRECT_PASS' | 'REPAIRED_PASS' | 'REPAIR_FAILED' | 'REPAIR_NOT_EXECUTED';
 
 export type GateOutcome = 'PASS' | 'FAIL' | 'NOT_APPLICABLE';
 
@@ -79,6 +80,14 @@ export interface AssuranceScore {
   components: ScoreComponent[];
 }
 
+export interface NormalizedTransformation {
+  type: "STRUCTURAL_DIFFERENCE" | "TRANSLATED_RULE" | "ASSUMPTION";
+  source: string;
+  target: string;
+  occurrences: number;
+  explanation: string;
+}
+
 export interface TranslationSummary {
   translation_id: string;
   source_dialect: string;
@@ -91,6 +100,23 @@ export interface TranslationSummary {
   provider: string;
   model: string;
   created_at: string;
+  transformations?: NormalizedTransformation[];
+  transformation_count?: number;
+}
+
+export interface MissingColumnRef {
+  table?: string | null;
+  column: string;
+}
+
+export interface PreflightSummary {
+  status: 'PASS' | 'FAILED';
+  failure_category?: string | null;
+  execution_allowed: boolean;
+  missing_columns: MissingColumnRef[];
+  unresolved_tables: string[];
+  available_columns: Record<string, string[]>;
+  reason?: string | null;
 }
 
 export interface ExecutionSummary {
@@ -143,8 +169,9 @@ export interface RepairSummary {
 }
 
 export interface VerificationSummary {
-  verification_id: string;
+  verification_id: string | null;
   status: string;
+  reason?: string | null;
   original_discrepancy_count: number;
   remaining_discrepancy_count: number;
   new_discrepancy_count: number;
@@ -202,6 +229,7 @@ export interface MigrationAssuranceReport {
   score: AssuranceScore;
   gate_evaluation: HardGateEvaluation;
   translation_summary?: TranslationSummary | null;
+  preflight_summary?: PreflightSummary | null;
   execution_summary?: ExecutionSummary | null;
   validation_summary?: ValidationSummary | null;
   discrepancy_summary?: DiscrepancySummary | null;

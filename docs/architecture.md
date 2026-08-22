@@ -1,75 +1,61 @@
-# MIGRA-Q Architecture
+# Architecture & Orchestration
 
-## Overview
+Migra-Q is designed around a strictly orchestrated, multi-stage pipeline. The migration lifecycle consists of nine primary phases, with Schema Preflight acting as a deterministic execution gate between Translation and Execution.
 
-MIGRA-Q verifies whether migrated SQL logic preserves source behavior.
-AI may generate a target SQL migration candidate or repair proposal, but MIGRA-Q independently and deterministically validates it.
+## The 9-Phase Pipeline
 
-## Core Principle
+1. **Phase 1: Analyze** - Parses the legacy SQL into an AST, extracts referenced tables/columns, and identifies potential translation risks.
+2. **Phase 2: Dataset / Refresh** - Resolves referenced datasets against the schema registry and provisions local DuckDB fixtures.
+3. **Phase 3: Translate** - Uses an LLM provider to translate the source SQL into the target dialect candidate.
+4. **Phase 4: Execute** - Sandboxes the execution of both source and target SQL in DuckDB.
+5. **Phase 5: Validate** - Runs a 5-stage deterministic comparison (Schema, Row, Aggregate, Business Rules, Edge Cases).
+6. **Phase 6: Diagnose** - If validation fails, classifies the semantic discrepancy.
+7. **Phase 7: Repair** - Synthesizes a patch for the target SQL based on the diagnosis.
+8. **Phase 8: Verify** - Re-executes the repaired candidate through the validation engine.
+9. **Phase 9: Assure** - Calculates a normalized assurance score (0-100) and evaluates hard quality gates.
 
+## The State Machine (Decision Tree)
+
+The orchestration is governed by a rigorous state machine (`MigrationStateMachine`). A migration must transition through these states exactly as defined. It cannot arbitrarily skip deterministic execution.
+
+```mermaid
+flowchart TD
+    NEW[NEW] --> ANALYZING
+    
+    ANALYZING --> TRANSLATING
+    ANALYZING --> FAILED
+    
+    TRANSLATING --> PREFLIGHTING
+    TRANSLATING --> FAILED
+    
+    PREFLIGHTING --> EXECUTING
+    PREFLIGHTING --> BLOCKED[BLOCKED - Input Schema Mismatch]
+    
+    EXECUTING --> VALIDATING
+    EXECUTING --> FAILED
+    
+    VALIDATING --> VERIFIED
+    VALIDATING --> DIAGNOSING
+    VALIDATING --> FAILED
+    
+    DIAGNOSING --> REPAIRING
+    DIAGNOSING --> FAILED
+    
+    REPAIRING --> VERIFYING
+    REPAIRING --> FAILED
+    
+    VERIFYING --> VERIFIED
+    VERIFYING --> BLOCKED[BLOCKED - Repair Failed]
+    VERIFYING --> FAILED
 ```
-Deterministic Core (Phases 1-5, Phase 8):      LLM / AI Gating (Phases 6-7):
-  - SQL parsing (SQLGlot AST)                   - SQL translation candidates
-  - AST normalization & rule extraction          - Grounded discrepancy diagnosis
-  - Synthetic lab & 20 benchmark scenarios       - Repair proposal generation
-  - DuckDB execution sandbox & Parquet artifacts
-  - Multi-layer semantic validation
-  - Discrepancy classification & evidence
-  - Repair candidate integrity validation
-  - Deterministic re-validation & proof chain
-```
 
-## Current Architecture (Phase 0 – Phase 8)
+## Hard Gates & Strict Validation
 
-```
-┌────────────┐      ┌─────────────────────────┐      ┌────────────┐
-│  Frontend  │─────▶│  FastAPI Backend        │─────▶│ PostgreSQL │
-│  React/TS  │      │                         │      │ (Audit Log)│
-└────────────┘      │  analyzer/              │      └────────────┘
-                    │  lab/                   │
-                    │  execution/             │      ┌────────────┐
-                    │  validation/            │─────▶│ DuckDB     │
-                    │  diagnosis/             │      │ (Parquet)  │
-                    │  translator/ (Phase 6)  │      └────────────┘
-                    │  diagnosis_ai/ (Phase 7)│
-                    │  repair_verification/   │      ┌────────────┐
-                    │    candidate_validator  │─────▶│ Generative │
-                    │    executor adapter     │      │ LLM (AI)   │
-                    │    discrepancy_diff     │      └────────────┘
-                    │    status_determiner    │
-                    │  assurance/ (Phase 9)   │
-                    │    state machine        │
-                    │    hard gates (11)      │
-                    │    scoring + coverage   │
-                    │    decision engine      │
-                    └─────────────────────────┘
-```
+Migra-Q implements **Hard Gates**. These are deterministic checks that immediately halt the pipeline if their invariants are violated:
+- **Schema Preflight**: Prevents the execution of SQL if it references columns not present in the dataset schema.
+- **Lineage Integrity**: The system refuses to process an artifact (e.g., Execution result) if its `source_sql_hash` does not strictly match the parent migration.
+- **Provider Limits**: If an LLM backend (like Gemini or OpenAI) hits rate limits, the migration transitions to `BLOCKED_PROVIDER_LIMIT`.
 
-## Phase Progression
+## Database Schema & Execution Sandbox
 
-1. **Phase 0**: Architecture & Domain Foundations
-2. **Phase 1**: Static Analysis Engine (SQLGlot AST parsing & normalization)
-3. **Phase 2**: Synthetic Data & Scenario Generator Engine
-4. **Phase 3**: Multi-Dialect Query Execution & Artifact Storage (DuckDB Engine)
-5. **Phase 4**: Multi-Layer Validation Engine (Deterministic semantic equivalence checking)
-6. **Phase 5**: Discrepancy Classification & Evidence Consolidation
-7. **Phase 6**: AI-Assisted SQL Translation Engine
-8. **Phase 7**: AI-Grounded Discrepancy Diagnosis & Repair Proposal Engine
-9. **Phase 8**: Repair Execution & Deterministic Re-Validation Engine (Deterministic candidate validation & formal proof chain)
-10. **Phase 9**: Migration Assurance & Audit Decision Layer (State machine, 11 hard gates, evidence scoring with coverage, deterministic decision engine)
-
-## Services & Modules
-
-| Module / Service | Technology | Purpose |
-|---|---|---|
-| `backend.analyzer` | Python / SQLGlot | Deterministic SQL parsing, extraction, AST diff |
-| `backend.lab` | Python / Pandas | Synthetic dataset & 20 benchmark scenario lab |
-| `backend.execution` | Python / DuckDB | Read-only isolated execution engine & Parquet artifacts |
-| `backend.validation` | Python | Independent semantic validation (schema, rows, aggregates, rules, edge cases) |
-| `backend.diagnosis` | Python | Discrepancy classification & evidence consolidation (11 categories) |
-| `backend.translator` | Python / OpenAI SDK | AI-assisted SQL translation candidate generation |
-| `backend.diagnosis_ai` | Python / OpenAI SDK | AI-grounded discrepancy diagnosis & repair proposal generation |
-| `backend.repair_verification` | Python | Deterministic candidate integrity validation, DuckDB execution, re-validation & proof chain |
-| `backend.assurance` | Python | Migration-level state machine, 11 hard gates, evidence scoring with coverage, deterministic decision engine |
-| `backend` | Python / FastAPI | REST API endpoints for all phases |
-| `postgres` | PostgreSQL 16 | Audit records (`executions`, `validations`, `diagnoses`, `repair_verifications`, `repair_outcomes`, `migrations`, `migration_assurance_reports`) |
+All migrations are backed by a transactional SQLite state store (`migraq.db`) that persists execution artifacts and logs transitions. However, the actual SQL is executed against **DuckDB** (`migraq.duckdb`), allowing for high-performance, local, in-memory validation of complex analytical queries without mutating enterprise data warehouses.

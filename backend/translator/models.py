@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+
+class NormalizedTransformation(BaseModel):
+    """Normalized, deduplicated translation transformation for UI/API consumption."""
+
+    type: Literal["STRUCTURAL_DIFFERENCE", "TRANSLATED_RULE", "ASSUMPTION"]
+    source: str
+    target: str
+    occurrences: int = 1
+    explanation: str = ""
 
 
 class ColumnSchemaDef(BaseModel):
@@ -155,6 +165,97 @@ class TranslationResult(BaseModel):
     response: TranslationResponse | None = None
     validation_summary: str = ""
     structural_differences: list[str] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def transformations(self) -> list[NormalizedTransformation]:
+        """Dynamically compute normalized transformations from translation metadata."""
+        if self.status != TranslationStatus.SUCCESS:
+            return []
+
+        evidence_map: dict[tuple[str, str], NormalizedTransformation] = {}
+
+        def add_transformation(t_type: Literal["STRUCTURAL_DIFFERENCE", "TRANSLATED_RULE", "ASSUMPTION"], source: str, target: str, explanation: str):
+            # Normalize whitespace/case for deduplication grouping
+            norm_source = source.strip()
+            norm_target = target.strip()
+            # We don't include t_type in the key so we can deduplicate the exact same mapping 
+            # if it appears in both structural_differences and translated_rules.
+            key = (norm_source, norm_target)
+            
+            if key in evidence_map:
+                # If we see it again from the same source, it's another occurrence.
+                # If it's from a different source (e.g. structural diff vs translated rule),
+                # we don't necessarily want to double count the occurrence of the logical rule.
+                # But for simplicity, we'll increment if it's the exact same type, otherwise just keep it as 1?
+                # Actually, user said: "If both sources describe the same actual transformation, deduplicate it... I recommend not counting the same evidence twice."
+                # We can store sources seen.
+                existing = evidence_map[key]
+                # If we've already seen this exact type, it's a true multiple occurrence
+                if existing.type == t_type:
+                    existing.occurrences += 1
+            else:
+                evidence_map[key] = NormalizedTransformation(
+                    type=t_type,
+                    source=source,
+                    target=target,
+                    occurrences=1,
+                    explanation=explanation
+                )
+
+        if self.response and self.response.translated_rules:
+            for rule in self.response.translated_rules:
+                # Deduplicate identical translated rules
+                # e.g., NVL -> COALESCE
+                add_transformation(
+                    t_type="TRANSLATED_RULE",
+                    source=rule.source_expression,
+                    target=rule.target_expression,
+                    explanation=f"Translated {rule.rule_type} rule"
+                )
+
+        if self.structural_differences:
+            for diff in self.structural_differences:
+                # Format is usually just a string describing the diff.
+                # If it contains '->', try to parse it to match translated rules
+                if "->" in diff:
+                    parts = diff.split("->", 1)
+                    add_transformation(
+                        t_type="STRUCTURAL_DIFFERENCE",
+                        source=parts[0].strip(),
+                        target=parts[1].strip(),
+                        explanation=diff
+                    )
+                else:
+                    add_transformation(
+                        t_type="STRUCTURAL_DIFFERENCE",
+                        source="STRUCTURAL_DIFFERENCE",
+                        target=diff,
+                        explanation=diff
+                    )
+                
+        if self.response and self.response.assumptions:
+            for assumption in self.response.assumptions:
+                add_transformation(
+                    t_type="ASSUMPTION",
+                    source="ASSUMPTION",
+                    target=assumption,
+                    explanation=assumption
+                )
+
+        return list(evidence_map.values())
+
+    @computed_field
+    @property
+    def transformation_count(self) -> int:
+        """Return the number of actual transformations (excluding assumptions)."""
+        return len([t for t in self.transformations if t.type != "ASSUMPTION"])
+
+    @computed_field
+    @property
+    def assumption_count(self) -> int:
+        """Return the number of assumptions."""
+        return len([t for t in self.transformations if t.type == "ASSUMPTION"])
 
     @classmethod
     def model_validate(cls, *args, **kwargs):
