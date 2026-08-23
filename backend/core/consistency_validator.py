@@ -9,6 +9,11 @@ from __future__ import annotations
 from typing import Any
 
 
+class CandidateStateError(ValueError):
+    """Raised when the active candidate violates preconditions before execution."""
+    pass
+
+
 class ArtifactStateConsistencyError(ValueError):
     """Raised when an artifact state combination violates lifecycle consistency invariants."""
     pass
