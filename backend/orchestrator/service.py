@@ -112,29 +112,107 @@ class MigrationOrchestrator:
             f"[MigrationOrchestrator] [{migration_id}] Starting run (source_hash: {source_hash}, dialect: {source_dialect} -> {target_dialect}, dataset: {dataset_id})"
         )
 
-        migration_record = self._assurance_service.create_migration(
-            migration_id=migration_id,
-            source_dialect=source_dialect,
-            target_dialect=target_dialect,
-            source_sql_hash=source_hash,
-            normalized_sql_hash=normalized_hash,
-            source_sql=source_sql_val,
-            source_sql_storage=source_sql_storage,
-            source_sql_ref=source_sql_ref,
-            dataset_id=dataset_id,
-            dataset_hash="pending",
-        )
+        migration_record = self._assurance_service.get_migration(migration_id)
+        if not migration_record:
+            migration_record = self._assurance_service.create_migration(
+                migration_id=migration_id,
+                source_dialect=source_dialect,
+                target_dialect=target_dialect,
+                source_sql_hash=source_hash,
+                normalized_sql_hash=normalized_hash,
+                source_sql=source_sql_val,
+                source_sql_storage=source_sql_storage,
+                source_sql_ref=source_sql_ref,
+                dataset_id=dataset_id,
+                dataset_hash="pending",
+            )
+            
+        from backend.assurance.service import get_active_source_candidate, create_source_candidate_version, save_source_candidate
+
+        # STEP 1.1: Resolve Active Source Candidate
+        active_src_cand = get_active_source_candidate(migration_id)
+        if not active_src_cand:
+            active_src_cand = create_source_candidate_version(
+                migration_id=migration_id, 
+                sql_text=source_sql_val or source_sql, 
+                origin="ORIGINAL", 
+                dialect=source_dialect
+            )
+            
+        # STEP 1.5: Source Preflight Validation
+        logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 1.5: Source Preflight Validation")
+        src_preflight = SchemaPreflightValidator.validate(active_src_cand.sql_text, dataset_id, dialect=source_dialect)
+        active_src_cand.preflight_summary = src_preflight
+        active_src_cand.preflight_status = src_preflight.status
+        save_source_candidate(active_src_cand)
+        
+        if not src_preflight.execution_allowed:
+            logger.warning(
+                f"[MigrationOrchestrator] [{migration_id}] Source schema preflight failed: {src_preflight.reason}. Halting pipeline."
+            )
+            # Create a partial assurance report reflecting the preflight failure
+            assurance_report = self._assurance_service.evaluate_assurance(
+                migration_id=migration_id,
+                translation_result=None,
+                preflight_summary=None,
+                source_execution=None,
+                target_execution=None,
+                validation_report=None,
+                discrepancy_report=None,
+                diagnosis_ai_result=None,
+                repair_verification_result=None,
+                source_preflight_summary=src_preflight, # We will add this to evaluate_assurance
+            )
+            assurance_report.metadata["profile"] = request.profile
+            # Force status to BLOCKED due to schema mismatch
+            assurance_report.final_status = MigrationFinalStatus.BLOCKED
+            assurance_report.decision_reason = src_preflight.reason or "Input source schema mismatch detected."
+            
+            # Save the report with the updated BLOCKED status
+            self._assurance_service._repository.save_assurance_report(assurance_report)
+            
+            from backend.db.database import get_db_session
+            from backend.db.models import MigrationRecordModel
+            db = get_db_session()
+            try:
+                db.query(MigrationRecordModel).filter(MigrationRecordModel.migration_id == migration_id).update({"final_status": "BLOCKED"})
+                db.commit()
+            finally:
+                db.close()
+                
+            updated_record = self._assurance_service.get_migration(migration_id)
+            final_record = updated_record if updated_record else migration_record
+
+            return PipelineRunResult(
+                migration_id=final_record.migration_id,
+                migration_record=final_record,
+                assurance_report=assurance_report,
+            )
 
         # (Analyzer already ran above to generate canonical hash)
 
         # STEP 2: Phase 6 Translator — AI/Rule-based Translation
         logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 2/8: Phase 6 AI Translator")
+        
+        from backend.datasets.registry import DatasetRegistry
+        from backend.translator.models import SchemaContext, TableSchema, ColumnSchemaDef
+        registry = DatasetRegistry()
+        dataset = registry.get_dataset(dataset_id)
+        schema_context = None
+        if dataset:
+            tables = []
+            for t in dataset.table_summaries:
+                cols = [ColumnSchemaDef(name=c.name, type=c.data_type) for c in t.columns]
+                tables.append(TableSchema(name=t.table_name, columns=cols))
+            schema_context = SchemaContext(tables=tables)
+            
         trans_req = TranslationRequest(
-            source_sql=source_sql,
+            source_sql=active_src_cand.sql_text,
             source_dialect=source_dialect,
             target_dialect=target_dialect,
             dataset_id=dataset_id,
             migration_id=migration_id,
+            schema_context=schema_context,
         )
         trans_res = TranslationService.translate(trans_req, mock_mode=request.mock_mode)
         if hasattr(trans_res, "metadata") and trans_res.metadata:
@@ -170,9 +248,25 @@ class MigrationOrchestrator:
         candidate_sql = trans_res.response.target_sql
         tgt_analysis = AnalyzerService.analyze(candidate_sql, dialect=target_dialect)
 
+
+        # STEP 2.2: Create Candidate Version
+        from backend.assurance.service import create_candidate_version, save_candidate
+        
+        candidate = create_candidate_version(
+            migration_id=migration_id,
+            sql_text=candidate_sql,
+            source="AI",
+            parent_version_id=None
+        )
+        candidate.source_candidate_id = active_src_cand.candidate_id
+
         # STEP 2.5: Schema Preflight
         logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 2.5: Schema Preflight Validation")
         preflight_summary = SchemaPreflightValidator.validate(candidate_sql, dataset_id, dialect=target_dialect)
+        
+        candidate.preflight_summary = preflight_summary
+        candidate.preflight_status = preflight_summary.status
+        save_candidate(candidate)
         
         if not preflight_summary.execution_allowed:
             logger.warning(
@@ -196,8 +290,7 @@ class MigrationOrchestrator:
             assurance_report.decision_reason = preflight_summary.reason or "Input schema mismatch detected."
             
             # Save the report with the updated BLOCKED status
-            from backend.assurance.repository import AssuranceRepository
-            AssuranceRepository.save_assurance_report(assurance_report)
+            self._assurance_service._repository.save_assurance_report(assurance_report)
             
             updated_record = self._assurance_service.get_migration(migration_id)
             # The background worker or service might need final_status updated directly too, though update_state doesn't set it immediately, it will be mapped.
@@ -220,6 +313,86 @@ class MigrationOrchestrator:
                 assurance_report=assurance_report,
             )
 
+
+        if preflight_summary.execution_allowed:
+            return self.execute_migration(migration_id, profile=request.profile, translation_result=trans_res, mock_mode=request.mock_mode)
+        else:
+            # We already returned PipelineRunResult for blocked above
+            pass
+
+    def execute_migration(self, migration_id: str, profile: str | None = None, translation_result: Any | None = None, mock_mode: str | None = None) -> PipelineRunResult:
+        '''Execute phases 3-9 for an already preflighted migration.'''
+        from backend.assurance.service import get_active_candidate, get_active_source_candidate
+        from backend.core.consistency_validator import CandidateStateError
+        
+        record = self._assurance_service.get_migration(migration_id)
+        if not record:
+            raise ValueError(f"Migration {migration_id} not found.")
+            
+        candidate = get_active_candidate(migration_id)
+        if not candidate:
+            raise CandidateStateError(f"No active candidate found for {migration_id}.")
+            
+        if not candidate.sql_text or not candidate.sql_text.strip():
+            raise CandidateStateError(f"Active SQL candidate is missing or empty for {migration_id}.")
+            
+        if not candidate.preflight_status == "PASS" or not candidate.preflight_summary or not candidate.preflight_summary.execution_allowed:
+            raise CandidateStateError(f"PRECONDITION_FAILED: Migration {migration_id} preflight is not PASS.")
+            
+        active_src = get_active_source_candidate(migration_id)
+        if active_src:
+            source_sql = active_src.sql_text
+        elif record.source_sql_ref:
+            from pathlib import Path
+            ref_path = Path(record.source_sql_ref)
+            if ref_path.exists():
+                source_sql = ref_path.read_text(encoding="utf-8")
+            else:
+                raise CandidateStateError(
+                    f"CANDIDATE_RESOLUTION_FAILED: Source SQL reference file not found "
+                    f"for migration {migration_id}: {record.source_sql_ref}"
+                )
+        elif record.source_sql:
+            source_sql = record.source_sql
+        else:
+            raise CandidateStateError(
+                f"CANDIDATE_RESOLUTION_FAILED: No active source candidate, no source_sql_ref, "
+                f"and no inline source_sql for migration {migration_id}. "
+                f"Cannot determine which SQL to execute."
+            )
+            
+        source_dialect = record.source_dialect
+        target_dialect = record.target_dialect
+        dataset_id = record.dataset_id
+        candidate_sql = candidate.sql_text
+        preflight_summary = candidate.preflight_summary
+        
+        # We need trans_res from the report to pass into evaluate_assurance.
+        # But wait, evaluate_assurance expects it. We can get it from report.
+        trans_res = translation_result
+        report = self._assurance_service.get_assurance_report(migration_id)
+        if not trans_res and report and report.translation_summary:
+            from backend.translator.models import TranslationResult, TranslationMetadata, TranslationStatus
+            trans_res = TranslationResult(
+                metadata=TranslationMetadata(
+                    translation_id=report.translation_summary.translation_id,
+                    request_id="loaded",
+                    provider=report.translation_summary.provider,
+                    model=report.translation_summary.model,
+                    source_dialect=source_dialect,
+                    target_dialect=target_dialect,
+                    source_sql_hash=record.source_sql_hash,
+                    translation_context_hash="",
+                    prompt_hash="",
+                    created_at=report.translation_summary.created_at,
+                ),
+                status=getattr(TranslationStatus, report.translation_summary.status, TranslationStatus.SUCCESS),
+                validation_summary="",
+            )
+            
+        src_analysis = AnalyzerService.analyze(source_sql, dialect=source_dialect)
+        tgt_analysis = AnalyzerService.analyze(candidate_sql, dialect=target_dialect)
+
         # STEP 3: Phase 3 Execution — DuckDB Execution Sandbox
         logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 3/8: Phase 3 DuckDB Execution Sandbox")
         src_exec = ExecutionService.execute(
@@ -229,6 +402,7 @@ class MigrationOrchestrator:
                 dataset_id=dataset_id,
                 execution_mode=ExecutionMode.SOURCE,
                 migration_id=migration_id,
+                candidate_id=candidate.candidate_id,
             )
         )
         tgt_exec = ExecutionService.execute(
@@ -238,20 +412,31 @@ class MigrationOrchestrator:
                 dataset_id=dataset_id,
                 execution_mode=ExecutionMode.TARGET,
                 migration_id=migration_id,
+                candidate_id=candidate.candidate_id,
             )
         )
         src_exec.migration_id = migration_id
+        src_exec.candidate_id = candidate.candidate_id
         tgt_exec.migration_id = migration_id
+        tgt_exec.candidate_id = candidate.candidate_id
 
-        # Update dataset_hash on record once execution sandbox resolves it
-        migration_record.dataset_hash = src_exec.dataset_hash
+        record.dataset_hash = src_exec.dataset_hash
 
-        # STRICT LIFECYCLE CHECK: If execution failed, do NOT proceed to validation
         if src_exec.status != ExecutionStatus.SUCCESS or tgt_exec.status != ExecutionStatus.SUCCESS:
-            logger.warning(
-                f"[MigrationOrchestrator] [{migration_id}] Execution failed (source={src_exec.status}, target={tgt_exec.status}). "
-                f"Halting pipeline execution. Downstream validation will NOT be run."
-            )
+            src_unsupported = src_exec.status == ExecutionStatus.UNSUPPORTED_CAPABILITY
+            tgt_unsupported = tgt_exec.status == ExecutionStatus.UNSUPPORTED_CAPABILITY
+            if src_unsupported or tgt_unsupported:
+                logger.warning(
+                    f"[MigrationOrchestrator] [{migration_id}] Execution halted: sandbox lacks capability "
+                    f"(source={src_exec.status.value}, target={tgt_exec.status.value}). "
+                    f"Marking assurance INCONCLUSIVE."
+                )
+            else:
+                logger.warning(
+                    f"[MigrationOrchestrator] [{migration_id}] Execution failed "
+                    f"(source={src_exec.status.value}, target={tgt_exec.status.value}). "
+                    f"Halting pipeline."
+                )
             assurance_report = self._assurance_service.evaluate_assurance(
                 migration_id=migration_id,
                 translation_result=trans_res,
@@ -262,26 +447,23 @@ class MigrationOrchestrator:
                 discrepancy_report=None,
                 diagnosis_ai_result=None,
                 repair_verification_result=None,
+                candidate_id=candidate.candidate_id,
             )
-            assurance_report.metadata["profile"] = request.profile
+            if profile: assurance_report.metadata["profile"] = profile
             updated_record = self._assurance_service.get_migration(migration_id)
-            final_record = updated_record if updated_record else migration_record
+            final_record = updated_record if updated_record else record
+            return PipelineRunResult(migration_id=final_record.migration_id, migration_record=final_record, assurance_report=assurance_report)
 
-            return PipelineRunResult(
-                migration_id=final_record.migration_id,
-                migration_record=final_record,
-                assurance_report=assurance_report,
-            )
-
-        # STEP 4: Phase 4 Validation — Multi-layer Semantic Validation
+        # STEP 4: Phase 4 Validation
         logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 4/8: Phase 4 Multi-Layer Semantic Validation")
         val_report = ValidationService.validate_executions(
             source_execution_id=src_exec.execution_id,
             target_execution_id=tgt_exec.execution_id,
         )
         val_report.migration_id = migration_id
+        val_report.candidate_id = candidate.candidate_id
 
-        # STEP 5: Phase 5 Diagnosis — Discrepancy Classification & Evidence
+        # STEP 5: Phase 5 Diagnosis
         disc_report = None
         diag_ai_res = None
         ver_res = None
@@ -298,11 +480,8 @@ class MigrationOrchestrator:
             if disc_report:
                 disc_report.migration_id = migration_id
 
-            # STEP 6: Phase 7 AI Diagnosis & Repair Proposal (if discrepancies exist)
             if disc_report and disc_report.discrepancies:
-                logger.info(
-                    f"[MigrationOrchestrator] [{migration_id}] Step 6/8: Phase 7 AI Diagnosis & Repair ({len(disc_report.discrepancies)} discrepancies found)"
-                )
+                logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 6/8: Phase 7 AI Diagnosis & Repair")
                 primary_disc = disc_report.discrepancies[0]
                 category_str = primary_disc.category.value if hasattr(primary_disc.category, "value") else str(primary_disc.category)
                 severity_str = primary_disc.severity.value if hasattr(primary_disc.severity, "value") else str(primary_disc.severity)
@@ -320,15 +499,14 @@ class MigrationOrchestrator:
                     affected_percentage=primary_disc.affected_percentage,
                     affected_columns=primary_disc.affected_output_columns,
                     validation_id=val_report.validation_id,
-                    translation_id=trans_res.metadata.translation_id,
-                    mock_mode=request.mock_mode,
+                    translation_id=trans_res.metadata.translation_id if trans_res else "",
+                    mock_mode=mock_mode,
                 )
                 if diag_ai_res:
                     diag_ai_res.migration_id = migration_id
 
-                # STEP 7: Phase 8 Repair Verification (if repair proposed)
                 if diag_ai_res and diag_ai_res.repair_proposal and diag_ai_res.repair_proposal.proposed_sql:
-                    logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 7/8: Phase 8 Repair Execution & Deterministic Re-Validation")
+                    logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 7/8: Phase 8 Repair Execution")
                     ver_res = RepairVerificationService.verify_repair(
                         repair_id=diag_ai_res.repair_proposal.repair_id,
                         discrepancy_id=primary_disc.discrepancy_id,
@@ -338,10 +516,8 @@ class MigrationOrchestrator:
                     )
                     if ver_res:
                         ver_res.migration_id = migration_id
-        else:
-            logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 5–7: Skipped (0 discrepancies detected, validation PASS)")
 
-        # STEP 8: Phase 9 Migration Assurance & Quality Gate Evaluation
+        # STEP 8: Phase 9 Migration Assurance
         logger.info(f"[MigrationOrchestrator] [{migration_id}] Step 8/8: Phase 9 Migration Assurance & Gate Evaluation")
         assurance_report = self._assurance_service.evaluate_assurance(
             migration_id=migration_id,
@@ -353,19 +529,9 @@ class MigrationOrchestrator:
             discrepancy_report=disc_report,
             diagnosis_ai_result=diag_ai_res,
             repair_verification_result=ver_res,
+            candidate_id=candidate.candidate_id,
         )
-        assurance_report.metadata["profile"] = request.profile
-
-        # Re-fetch updated record after assurance evaluation
+        if profile: assurance_report.metadata["profile"] = profile
         updated_record = self._assurance_service.get_migration(migration_id)
-        final_record = updated_record if updated_record else migration_record
-
-        logger.info(
-            f"[MigrationOrchestrator] Completed migration {final_record.migration_id}: Status={final_record.final_status}, Score={final_record.assurance_score}"
-        )
-
-        return PipelineRunResult(
-            migration_id=final_record.migration_id,
-            migration_record=final_record,
-            assurance_report=assurance_report,
-        )
+        final_record = updated_record if updated_record else record
+        return PipelineRunResult(migration_id=final_record.migration_id, migration_record=final_record, assurance_report=assurance_report)
