@@ -25,7 +25,7 @@ export const ValidationView: React.FC<ValidationViewProps> = ({ report }) => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '12px' }}>
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: report.execution_summary.source_status === 'SUCCESS' ? '#065F46' : '#7F1D1D', textTransform: 'uppercase', marginBottom: '4px' }}>
-                  Source ({report.source_dialect || 'Source'}) Execution
+                  Source ({report.translation_summary?.source_dialect || 'Source'}) Execution
                 </div>
                 <div style={{ fontSize: '13px', color: report.execution_summary.source_status === 'SUCCESS' ? '#047857' : '#991B1B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {report.execution_summary.source_status === 'SUCCESS' ? (
@@ -43,7 +43,7 @@ export const ValidationView: React.FC<ValidationViewProps> = ({ report }) => {
 
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: report.execution_summary.target_status === 'SUCCESS' ? '#065F46' : '#7F1D1D', textTransform: 'uppercase', marginBottom: '4px' }}>
-                  Target ({report.target_dialect || 'Target'}) Execution
+                  Target ({report.translation_summary?.target_dialect || 'Target'}) Execution
                 </div>
                 <div style={{ fontSize: '13px', color: report.execution_summary.target_status === 'SUCCESS' ? '#047857' : '#991B1B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {report.execution_summary.target_status === 'SUCCESS' ? (

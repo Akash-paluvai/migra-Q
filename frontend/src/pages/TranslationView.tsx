@@ -41,6 +41,7 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
   const [editedSourceSql, setEditedSourceSql] = useState<string>('');
   const [isEditingSource, setIsEditingSource] = useState<boolean>(false);
   const [isSubmittingSource, setIsSubmittingSource] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [activeSourceCandidate, setActiveSourceCandidate] = useState<any>(null);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
 
       const translationId = report.lineage?.translation_id || report.translation_summary?.translation_id;
       if (!translationId) {
-        if (report.source_preflight_summary && report.source_preflight_summary.status !== 'PASS') {
+        if (report.preflight_summary && report.preflight_summary.status !== 'PASS') {
            let migrationRes: Record<string, any> = {};
            try {
              migrationRes = await fetchApi<Record<string, any>>(`/api/v1/migrations/${report.migration_id}`);
@@ -256,7 +257,7 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
   const handleContinueToExecute = async () => {
     setExecuting(true);
     try {
-      const res = await fetchApi<any>(`/api/v1/migrations/${report.migration_id}/execute`, {
+      await fetchApi<any>(`/api/v1/migrations/${report.migration_id}/execute`, {
         method: 'POST'
       });
       // Redirect or reload to show new state
@@ -439,7 +440,7 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
         </div>
       </div>
 
-      {report.source_preflight_summary && report.source_preflight_summary.status !== 'PASS' && (
+      {report.preflight_summary && report.preflight_summary.status !== 'PASS' && (
         <div
           className="card-panel"
           style={{
@@ -458,12 +459,12 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
               ⚠ Source Schema Preflight BLOCKED
             </h3>
             <p style={{ color: '#7F1D1D', fontSize: '14px', lineHeight: 1.5, marginBottom: '16px' }}>
-              {report.source_preflight_summary.reason || 'Unknown source preflight error.'}
+              {report.preflight_summary.reason || 'Unknown source preflight error.'}
             </p>
-            {report.source_preflight_summary.available_columns && Object.keys(report.source_preflight_summary.available_columns).length > 0 && (
+            {report.preflight_summary.available_columns && Object.keys(report.preflight_summary.available_columns).length > 0 && (
               <div style={{ backgroundColor: '#FEE2E2', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: '#991B1B', marginBottom: '8px' }}>Available source dataset schema</div>
-                {Object.entries(report.source_preflight_summary.available_columns).map(([tbl, cols]: [string, any]) => (
+                {Object.entries(report.preflight_summary.available_columns).map(([tbl, cols]: [string, any]) => (
                   <div key={tbl} style={{ marginBottom: '8px' }}>
                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#991B1B' }}>{tbl}</div>
                      <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: '#7F1D1D' }}>

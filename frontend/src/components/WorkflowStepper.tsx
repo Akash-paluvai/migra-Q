@@ -35,14 +35,14 @@ const STEP_DEFINITIONS: StepDefinition[] = [
   {
     id: 'SOURCE_PREFLIGHT',
     label: 'Source Preflight',
-    getStatus: (curState, rep) => {
+    getStatus: (_curState, rep) => {
       if (!rep) return { state: 'NOT_STARTED' };
-      if (!rep.source_preflight_summary) {
+      if (!rep.preflight_summary) {
         // If we have translation summary or beyond, it passed (or was skipped in older versions)
         if (rep.translation_summary) return { state: 'SUCCESS' };
         return { state: 'NOT_RUN', badgeText: 'NOT RUN' };
       }
-      if (rep.source_preflight_summary.status === 'PASS') return { state: 'SUCCESS' };
+      if (rep.preflight_summary.status === 'PASS') return { state: 'SUCCESS' };
       return { state: 'BLOCKED', badgeText: 'BLOCKED' };
     },
   },
@@ -52,7 +52,7 @@ const STEP_DEFINITIONS: StepDefinition[] = [
     getStatus: (curState, rep) => {
       if (curState === 'TRANSLATING') return { state: 'RUNNING' };
       if (!rep || !rep.translation_summary) {
-         if (rep && rep.source_preflight_summary && rep.source_preflight_summary.status !== 'PASS') {
+         if (rep && rep.preflight_summary && rep.preflight_summary.status !== 'PASS') {
              return { state: 'NOT_RUN', badgeText: 'BLOCKED' };
          }
          return { state: 'NOT_STARTED' };
