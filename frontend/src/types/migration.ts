@@ -23,6 +23,8 @@ export type MigrationFinalStatus =
   | 'VERIFIED'
   | 'BLOCKED'
   | 'FAILED'
+  | 'INCONCLUSIVE'
+  | 'BLOCKED_PROVIDER_LIMIT'
   | 'IN_PROGRESS'
   | 'ERROR';
 

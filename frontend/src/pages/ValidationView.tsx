@@ -14,9 +14,59 @@ export const ValidationView: React.FC<ValidationViewProps> = ({ report }) => {
     return (
       <div className="card-panel" style={{ padding: '32px', textAlign: 'center' }}>
         <h3 style={{ color: '#64748B', marginBottom: '8px' }}>Validation Not Run</h3>
-        <p style={{ color: '#94A3B8', fontSize: '14px', maxWidth: '500px', margin: '0 auto' }}>
+        <p style={{ color: '#94A3B8', fontSize: '14px', maxWidth: '500px', margin: '0 auto', marginBottom: '24px' }}>
           Phase 4 Multi-Layer Semantic Validation was NOT RUN because upstream translation or execution did not complete successfully.
         </p>
+
+        {report.execution_summary && (
+          <div style={{ textAlign: 'left', backgroundColor: '#FEF2F2', padding: '16px', borderRadius: '8px', border: '1px solid #FECACA' }}>
+            <h4 style={{ color: '#991B1B', margin: '0 0 12px 0' }}>Execution Status</h4>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '12px' }}>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: report.execution_summary.source_status === 'SUCCESS' ? '#065F46' : '#7F1D1D', textTransform: 'uppercase', marginBottom: '4px' }}>
+                  Source ({report.source_dialect || 'Source'}) Execution
+                </div>
+                <div style={{ fontSize: '13px', color: report.execution_summary.source_status === 'SUCCESS' ? '#047857' : '#991B1B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {report.execution_summary.source_status === 'SUCCESS' ? (
+                    <><span>✅</span> SUCCESS</>
+                  ) : (
+                    <><span>❌</span> FAILED</>
+                  )}
+                </div>
+                {report.execution_summary.source_status !== 'SUCCESS' && (
+                   <div style={{ fontSize: '11px', color: '#991B1B', fontFamily: 'monospace', whiteSpace: 'pre-wrap', marginTop: '6px', background: '#f8717122', padding: '4px', borderRadius: '4px' }}>
+                     {report.execution_summary.source_status}
+                   </div>
+                )}
+              </div>
+
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: report.execution_summary.target_status === 'SUCCESS' ? '#065F46' : '#7F1D1D', textTransform: 'uppercase', marginBottom: '4px' }}>
+                  Target ({report.target_dialect || 'Target'}) Execution
+                </div>
+                <div style={{ fontSize: '13px', color: report.execution_summary.target_status === 'SUCCESS' ? '#047857' : '#991B1B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {report.execution_summary.target_status === 'SUCCESS' ? (
+                    <><span>✅</span> SUCCESS</>
+                  ) : (
+                    <><span>❌</span> FAILED</>
+                  )}
+                </div>
+                {report.execution_summary.target_status !== 'SUCCESS' && (
+                   <div style={{ fontSize: '11px', color: '#991B1B', fontFamily: 'monospace', whiteSpace: 'pre-wrap', marginTop: '6px', background: '#f8717122', padding: '4px', borderRadius: '4px' }}>
+                     {report.execution_summary.target_status}
+                   </div>
+                )}
+              </div>
+            </div>
+            
+            {(report.execution_summary.source_status !== 'SUCCESS' || report.execution_summary.target_status !== 'SUCCESS') && (
+              <div style={{ fontSize: '13px', color: '#991B1B', marginTop: '8px', borderTop: '1px solid #FECACA', paddingTop: '12px' }}>
+                <strong>Semantic Validation ⏭ NOT RUN.</strong> There is no comparable output pair due to execution failure.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }

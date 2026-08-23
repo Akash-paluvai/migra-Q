@@ -29,8 +29,19 @@ interface CanonicalTranslationData {
 
 export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
   const [translationData, setTranslationData] = useState<CanonicalTranslationData | null>(null);
+  const [activeCandidate, setActiveCandidate] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [lineageError, setLineageError] = useState<string | null>(null);
+  const [editedSql, setEditedSql] = useState<string>('');
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [preflightSummary, setPreflightSummary] = useState<any>(report.preflight_summary);
+  const [executing, setExecuting] = useState<boolean>(false);
+  
+  // New states for editing source SQL
+  const [editedSourceSql, setEditedSourceSql] = useState<string>('');
+  const [isEditingSource, setIsEditingSource] = useState<boolean>(false);
+  const [isSubmittingSource, setIsSubmittingSource] = useState<boolean>(false);
+  const [activeSourceCandidate, setActiveSourceCandidate] = useState<any>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -40,6 +51,40 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
 
       const translationId = report.lineage?.translation_id || report.translation_summary?.translation_id;
       if (!translationId) {
+        if (report.source_preflight_summary && report.source_preflight_summary.status !== 'PASS') {
+           let migrationRes: Record<string, any> = {};
+           try {
+             migrationRes = await fetchApi<Record<string, any>>(`/api/v1/migrations/${report.migration_id}`);
+           } catch (err) {}
+
+             let activeSrcSql = '';
+             try {
+               const srcRes = await fetchApi<any>(`/api/v1/migrations/${report.migration_id}/source_candidate/active`);
+               if (srcRes && srcRes.candidate && srcRes.candidate.sql_text) {
+                 activeSrcSql = srcRes.candidate.sql_text;
+                 if (isMounted) setActiveSourceCandidate(srcRes.candidate);
+               }
+             } catch (err) {}
+
+             if (isMounted) {
+               setTranslationData({
+                 translation_id: '',
+                 migration_id: report.migration_id,
+                 source_sql: activeSrcSql || migrationRes.source_sql || '',
+                 target_sql: '',
+                 source_dialect: migrationRes.source_dialect || '',
+                 target_dialect: migrationRes.target_dialect || '',
+                 source_sql_hash: '',
+                 status: 'BLOCKED',
+                 provider: '',
+                 model: '',
+               });
+               setEditedSourceSql(activeSrcSql || migrationRes.source_sql || '');
+               setLoading(false);
+             }
+           return;
+        }
+
         if (isMounted) {
           setLineageError('No translation artifact ID in audit lineage.');
           setLoading(false);
@@ -86,10 +131,32 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
           return;
         }
 
-        if (isMounted) {
-          setTranslationData(data);
-          setLoading(false);
+        try {
+          const candidateRes = await fetchApi<any>(`/api/v1/migrations/${report.migration_id}/candidate/active`);
+          if (candidateRes && candidateRes.sql) {
+            data.target_sql = candidateRes.sql;
+            if (isMounted) {
+              setActiveCandidate(candidateRes);
+            }
+          }
+        } catch (err) {
+          console.warn("No active candidate found or error fetching it", err);
         }
+
+        try {
+          const srcRes = await fetchApi<any>(`/api/v1/migrations/${report.migration_id}/source_candidate/active`);
+          if (srcRes && srcRes.candidate && srcRes.candidate.sql_text) {
+            data.source_sql = srcRes.candidate.sql_text;
+            if (isMounted) setActiveSourceCandidate(srcRes.candidate);
+          }
+        } catch (err) {}
+
+          if (isMounted) {
+            setTranslationData(data);
+            setEditedSql(data.target_sql);
+            setEditedSourceSql(data.source_sql);
+            setLoading(false);
+          }
       } catch (err: any) {
         // Fallback to report.translation_summary if endpoint fails but verify migration_id
         if (isMounted) {
@@ -112,6 +179,7 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
               transformations: summary.transformations || [],
               transformation_count: summary.transformation_count || 0,
             });
+            setEditedSourceSql(migrationRes.source_sql || summary.source_sql || '');
           } else {
             setLineageError(`Failed to fetch canonical translation artifact: ${err?.message || err}`);
           }
@@ -151,6 +219,55 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
   const isFailed = data.status !== 'SUCCESS';
   const candStatus = data.candidate_validation_status || (isFailed ? 'N/A' : 'VALID_SYNTAX');
 
+  const handleSaveAndPreflight = async () => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetchApi<any>(`/api/v1/migrations/${report.migration_id}/candidate`, {
+        method: 'POST',
+        body: JSON.stringify({ edited_sql: editedSql })
+      });
+      setPreflightSummary(res.preflight_summary);
+      if (res.preflight_summary.status === 'PASS') {
+        setIsEditing(false);
+      }
+    } catch (e: any) {
+      alert(`Error running preflight: ${e.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveSourceSql = async () => {
+    setIsSubmittingSource(true);
+    try {
+      await fetchApi<any>(`/api/v1/migrations/${report.migration_id}/source_candidate`, {
+        method: 'POST',
+        body: JSON.stringify({ edited_sql: editedSourceSql })
+      });
+      setIsEditingSource(false);
+      window.location.reload();
+    } catch (e: any) {
+      alert(`Error submitting source candidate: ${e.message}`);
+    } finally {
+      setIsSubmittingSource(false);
+    }
+  };
+
+  const handleContinueToExecute = async () => {
+    setExecuting(true);
+    try {
+      const res = await fetchApi<any>(`/api/v1/migrations/${report.migration_id}/execute`, {
+        method: 'POST'
+      });
+      // Redirect or reload to show new state
+      window.location.reload();
+    } catch (e: any) {
+      alert(`Error executing migration: ${e.message}`);
+      setExecuting(false);
+    }
+  };
+
+
   const transformations = data?.transformations || [];
   const actualTransformations = transformations.filter((t: any) => t.type !== 'ASSUMPTION');
   const actualAssumptions = transformations.filter((t: any) => t.type === 'ASSUMPTION');
@@ -159,39 +276,19 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
 
   return (
     <div>
-      {/* Failure Banner if Translation Failed */}
-      {isFailed && (
-        <div
-          className="card-panel"
-          style={{
-            backgroundColor: '#FEF2F2',
-            border: '1px solid #FECACA',
-            padding: '20px',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '16px',
-          }}
-        >
-          <XCircle size={24} color="#DC2626" style={{ flexShrink: 0, marginTop: '2px' }} />
-          <div>
-            <h3 style={{ color: '#991B1B', fontSize: '16px', marginBottom: '4px' }}>
-              Translation Failed ({data.status})
-            </h3>
-            <p style={{ color: '#7F1D1D', fontSize: '14px', lineHeight: 1.5 }}>
-              {data.error_message || report.decision_reason || 'Translation could not produce valid target candidate SQL. Downstream phases have been stopped.'}
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Header & Status Labels */}
       <div className="card-panel">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h3>AI-TRANSLATED TARGET CANDIDATE</h3>
+            <h3>
+              {activeCandidate && activeCandidate.version > 1 
+                ? `TARGET CANDIDATE v${activeCandidate.version} · ${activeCandidate.source} EDITED`
+                : 'AI-TRANSLATED TARGET CANDIDATE'}
+            </h3>
             <p style={{ fontSize: '13px', color: '#64748B', marginTop: '2px' }}>
-              Generated by dialect-aware translation model ({data.provider}{data.model ? ` / ${data.model}` : ''})
+              {activeCandidate && activeCandidate.version > 1 
+                ? 'Edited candidate overriding original translation'
+                : `Generated by dialect-aware translation model (${data.provider}${data.model ? ` / ${data.model}` : ''})`}
             </p>
           </div>
 
@@ -225,6 +322,32 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
           </div>
         </div>
       </div>
+      {isFailed && (
+        <div
+          className="card-panel"
+          style={{
+            backgroundColor: '#FEF2F2',
+            border: '1px solid #FECACA',
+            padding: '20px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '16px',
+          }}
+        >
+          <XCircle size={24} color="#DC2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>
+            <h3 style={{ color: '#991B1B', fontSize: '16px', marginBottom: '4px' }}>
+              Translation Failed ({data.status})
+            </h3>
+            <p style={{ color: '#7F1D1D', fontSize: '14px', lineHeight: 1.5 }}>
+              {data.error_message || report.decision_reason || 'Translation could not produce valid target candidate SQL. Downstream phases have been stopped.'}
+            </p>
+          </div>
+        </div>
+      )}
+
+
 
       {/* Explanation Summary */}
       <div className="card-panel">
@@ -249,7 +372,7 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
           </div>
           <div style={{ backgroundColor: '#F8FAFC', padding: '14px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Changes</div>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', marginTop: '4px' }}>{numTransformations} detected</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A', marginTop: '4px' }}>{numTransformations === 1 ? '1 transformation rule applied' : numTransformations + ' transformation rules applied'}</div>
           </div>
         </div>
 
@@ -293,7 +416,7 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
               ? 'Transformation details unavailable. Translation failed before a target candidate was generated.' 
               : numTransformations > 0 
                 ? `${numTransformations} dialect-specific transformation${numTransformations !== 1 ? 's were' : ' was'} applied. ${numAssumptions} compatibility assumption${numAssumptions !== 1 ? 's were' : ' was'} recorded and should be considered when reviewing the translation.` 
-                : 'No dialect-specific transformations were reported for this translation.'}
+                : 'No dialect-specific transformations were required; this query is natively supported by both dialects.'}
           </div>
         </div>
       </div>
@@ -303,7 +426,9 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
         <h3 style={{ marginBottom: '16px' }}>SQL CODE COMPARISON</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
           <CodePanel
-            title={`SOURCE SQL (${(data.source_dialect || 'SOURCE').toUpperCase()})`}
+            title={activeSourceCandidate && activeSourceCandidate.version > 1 
+                   ? `SOURCE SQL v${activeSourceCandidate.version} · ${activeSourceCandidate.origin} EDITED`
+                   : `SOURCE SQL (${(data.source_dialect || 'SOURCE').toUpperCase()})`}
             code={data.source_sql ? (() => { try { return format(data.source_sql); } catch(e) { return data.source_sql; } })() : '-- Source SQL unavailable'}
           />
 
@@ -313,6 +438,217 @@ export const TranslationView: React.FC<TranslationViewProps> = ({ report }) => {
           />
         </div>
       </div>
+
+      {report.source_preflight_summary && report.source_preflight_summary.status !== 'PASS' && (
+        <div
+          className="card-panel"
+          style={{
+            backgroundColor: '#FEF2F2',
+            border: '1px solid #FECACA',
+            padding: '20px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '16px',
+          }}
+        >
+          <XCircle size={24} color="#DC2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ width: '100%' }}>
+            <h3 style={{ color: '#991B1B', fontSize: '16px', marginBottom: '8px' }}>
+              ⚠ Source Schema Preflight BLOCKED
+            </h3>
+            <p style={{ color: '#7F1D1D', fontSize: '14px', lineHeight: 1.5, marginBottom: '16px' }}>
+              {report.source_preflight_summary.reason || 'Unknown source preflight error.'}
+            </p>
+            {report.source_preflight_summary.available_columns && Object.keys(report.source_preflight_summary.available_columns).length > 0 && (
+              <div style={{ backgroundColor: '#FEE2E2', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#991B1B', marginBottom: '8px' }}>Available source dataset schema</div>
+                {Object.entries(report.source_preflight_summary.available_columns).map(([tbl, cols]: [string, any]) => (
+                  <div key={tbl} style={{ marginBottom: '8px' }}>
+                     <div style={{ fontSize: '13px', fontWeight: 600, color: '#991B1B' }}>{tbl}</div>
+                     <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: '#7F1D1D' }}>
+                       {cols.map((c: string) => <li key={c}>{c}</li>)}
+                     </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {!isEditingSource && (
+              <button
+                onClick={() => setIsEditingSource(true)}
+                style={{ padding: '8px 16px', backgroundColor: '#3B82F6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}
+              >
+                Edit Source SQL
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isEditingSource && (
+        <div className="card-panel" style={{ padding: '24px', backgroundColor: '#F8FAFC', border: '1px solid #CBD5E1', marginBottom: '20px' }}>
+          <div style={{ fontWeight: 600, fontSize: '14px', color: '#334155', display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <span>EDIT SOURCE SQL</span>
+          </div>
+          <textarea
+            value={editedSourceSql}
+            onChange={(e) => setEditedSourceSql(e.target.value)}
+            style={{
+              width: '100%',
+              height: '400px',
+              fontFamily: 'monospace',
+              padding: '16px',
+              border: '1px solid #94A3B8',
+              borderRadius: '6px',
+              backgroundColor: '#FFFFFF',
+              fontSize: '13px',
+              lineHeight: '1.5'
+            }}
+          />
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-start', marginTop: '16px' }}>
+            <button
+              onClick={() => setIsEditingSource(false)}
+              style={{ padding: '8px 16px', backgroundColor: '#E2E8F0', color: '#334155', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveSourceSql}
+              disabled={isSubmittingSource}
+              style={{ padding: '8px 16px', backgroundColor: '#3B82F6', color: 'white', border: 'none', borderRadius: '6px', cursor: isSubmittingSource ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: isSubmittingSource ? 0.7 : 1 }}
+            >
+              {isSubmittingSource ? 'Submitting...' : 'Save & Restart Pipeline'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {preflightSummary && preflightSummary.status !== 'PASS' && (
+        <div
+          className="card-panel"
+          style={{
+            backgroundColor: '#FFFBEB',
+            border: '1px solid #FDE68A',
+            padding: '20px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '16px',
+          }}
+        >
+          <XCircle size={24} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ width: '100%' }}>
+            <h3 style={{ color: '#B45309', fontSize: '16px', marginBottom: '8px' }}>
+              ⚠ Schema Preflight BLOCKED
+            </h3>
+            <p style={{ color: '#92400E', fontSize: '14px', lineHeight: 1.5, marginBottom: '16px' }}>
+              {preflightSummary.reason || 'Unknown preflight error.'}
+            </p>
+            {preflightSummary.available_columns && Object.keys(preflightSummary.available_columns).length > 0 && (
+              <div style={{ backgroundColor: '#FEF3C7', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#92400E', marginBottom: '8px' }}>Available schema</div>
+                {Object.entries(preflightSummary.available_columns).map(([tbl, cols]: [string, any]) => (
+                  <div key={tbl} style={{ marginBottom: '8px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#B45309' }}>{tbl}</div>
+                    <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: '#92400E' }}>
+                      {cols.map((c: string) => <li key={c}>{c}</li>)}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {!isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                style={{ padding: '8px 16px', backgroundColor: '#3B82F6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}
+              >
+                Edit Target SQL
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isEditing && (
+        <div className="card-panel" style={{ padding: '24px', backgroundColor: '#F8FAFC', border: '1px solid #CBD5E1' }}>
+          <div style={{ fontWeight: 600, fontSize: '14px', color: '#334155', display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <span>EDIT TARGET SQL — CANDIDATE v1</span>
+          </div>
+          <textarea
+            value={editedSql}
+            onChange={(e) => setEditedSql(e.target.value)}
+            style={{
+              width: '100%',
+              height: '400px',
+              fontFamily: 'monospace',
+              padding: '16px',
+              border: '1px solid #94A3B8',
+              borderRadius: '6px',
+              backgroundColor: '#FFFFFF',
+              fontSize: '13px',
+              lineHeight: '1.5'
+            }}
+          />
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-start', marginTop: '16px' }}>
+            <button
+              onClick={() => setIsEditing(false)}
+              style={{ padding: '8px 16px', backgroundColor: '#E2E8F0', color: '#334155', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveAndPreflight}
+              disabled={isSubmitting}
+              style={{ padding: '8px 16px', backgroundColor: '#2563EB', color: 'white', border: 'none', borderRadius: '6px', cursor: isSubmitting ? 'not-allowed' : 'pointer', fontWeight: 600 }}
+            >
+              {isSubmitting ? 'Running...' : 'Save & Re-run Preflight'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeCandidate && activeCandidate.can_execute === true && (
+        <div
+          className="card-panel"
+          style={{
+            backgroundColor: '#F0FDF4',
+            border: '1px solid #bbf7d0',
+            padding: '24px',
+            marginBottom: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+        >
+          <div>
+            <h3 style={{ color: '#166534', fontSize: '18px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '20px' }}>✓</span> Schema Preflight PASSED
+            </h3>
+            <div style={{ color: '#15803D', fontSize: '14px', fontWeight: 600, marginTop: '8px', marginBottom: '16px' }}>
+              Candidate v{activeCandidate ? activeCandidate.version : ''} · USER EDITED
+            </div>
+          </div>
+          <button
+            onClick={handleContinueToExecute}
+            disabled={executing}
+            style={{
+              padding: '10px 24px',
+              backgroundColor: '#16A34A',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontWeight: 600,
+              cursor: executing ? 'not-allowed' : 'pointer',
+              alignSelf: 'flex-start',
+              fontSize: '14px'
+            }}
+          >
+            {executing ? 'Executing...' : 'Continue to Execute'}
+          </button>
+        </div>
+      )}
 
       {/* Structured Metadata Breakdown */}
       <div className="card-panel">

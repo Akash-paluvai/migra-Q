@@ -251,6 +251,12 @@ p.page-subtitle {
     color: var(--status-na-text);
     border: 1px solid var(--status-na-border);
   }
+
+  &.status-inconclusive {
+    background-color: #FEF3C7; /* amber-100 */
+    color: #92400E; /* amber-800 */
+    border: 1px solid #FCD34D; /* amber-300 */
+  }
 }
 
 /* Buttons */

@@ -55,22 +55,40 @@ export const WhyBlockedCard: React.FC<WhyBlockedCardProps> = ({ report }) => {
         )}
 
         {report.preflight_summary.available_columns && Object.keys(report.preflight_summary.available_columns).length > 0 && (
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ backgroundColor: '#FEF3C7', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#92400E', marginBottom: '8px' }}>Available schema</div>
             {Object.entries(report.preflight_summary.available_columns).map(([table, cols]) => (
-              <div key={table} style={{ marginBottom: '12px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#991B1B', marginBottom: '4px', textTransform: 'uppercase' }}>
-                  Available columns in {table}
-                </div>
-                <div style={{ fontSize: '13px', fontFamily: 'var(--font-mono)', color: '#7F1D1D' }}>
-                  {cols.join(' · ')}
-                </div>
+              <div key={table} style={{ marginBottom: '8px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#B45309' }}>{table}</div>
+                <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: '#92400E' }}>
+                  {cols.map((c: string) => <li key={c}>{c}</li>)}
+                </ul>
               </div>
             ))}
           </div>
         )}
 
-        <div style={{ fontSize: '13px', color: '#991B1B', marginTop: '16px' }}>
-          Execution was not attempted. Choose another dataset or edit the query to continue.
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <a
+            href={`/migrations/${report.migration_id}/translation`}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#3B82F6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 600,
+              textDecoration: 'none',
+              display: 'inline-block'
+            }}
+          >
+            Edit Target SQL
+          </a>
+          <div style={{ fontSize: '13px', color: '#991B1B' }}>
+            Execution was not attempted. Edit the query to continue.
+          </div>
         </div>
       </div>
     );

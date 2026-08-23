@@ -26,8 +26,10 @@ class SummaryBuilder:
     Each method produces a reference-only summary — no full artifact content is embedded.
     """
 
-    def build_translation_summary(self, translation_result: TranslationResult) -> TranslationSummary:
+    def build_translation_summary(self, translation_result: TranslationResult | None) -> TranslationSummary | None:
         """Build a TranslationSummary from Phase 6 TranslationResult."""
+        if translation_result is None:
+            return None
         return TranslationSummary(
             translation_id=translation_result.metadata.translation_id,
             source_dialect=translation_result.metadata.source_dialect,

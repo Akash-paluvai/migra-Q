@@ -41,6 +41,7 @@ class MigrationFinalStatus(str, Enum):
     BLOCKED = "BLOCKED"
     BLOCKED_PROVIDER_LIMIT = "BLOCKED_PROVIDER_LIMIT"
     FAILED = "FAILED"
+    INCONCLUSIVE = "INCONCLUSIVE"
     IN_PROGRESS = "IN_PROGRESS"
     ERROR = "ERROR"
 
@@ -272,6 +273,7 @@ class AuditLineage(BaseModel):
     """Complete provenance chain linking all Phase 1–8 artifact IDs."""
 
     translation_id: str = ""
+    candidate_id: str = ""
     source_execution_id: str = ""
     target_execution_id: str = ""
     validation_id: str = ""
@@ -281,6 +283,40 @@ class AuditLineage(BaseModel):
     verification_id: str = ""
     verification_path: VerificationPath = VerificationPath.DIRECT_PASS
     is_complete: bool = False
+
+
+# ---------------------------------------------------------------------------
+# SQL Candidate Version
+# ---------------------------------------------------------------------------
+
+class SQLSourceCandidateVersion(BaseModel):
+    """Pydantic model representing a single version of the Source SQL."""
+    candidate_id: str
+    migration_id: str
+    version: int
+    sql_text: str
+    origin: str  # ORIGINAL, USER
+    dialect: str
+    preflight_status: str | None = None
+    preflight_summary: PreflightSummary | None = None
+    is_active: bool = True
+    created_at: str
+
+class SQLCandidateVersion(BaseModel):
+    """A versioned SQL candidate representing a step in the correction loop."""
+
+    candidate_id: str
+    migration_id: str
+    version: int
+    sql_text: str
+    source: str  # 'AI', 'USER', 'REPAIR'
+    parent_version_id: str | None = None
+    source_candidate_id: str | None = None
+    preflight_status: str | None = None
+    preflight_summary: PreflightSummary | None = None
+    is_active: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +369,7 @@ class MigrationAssuranceReport(BaseModel):
     """
 
     migration_id: str
+    candidate_id: str | None = None
     assurance_version: str = ASSURANCE_VERSION
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -348,6 +385,7 @@ class MigrationAssuranceReport(BaseModel):
     gate_evaluation: HardGateEvaluation = Field(default_factory=HardGateEvaluation)
 
     # Phase summaries
+    source_preflight_summary: PreflightSummary | None = None
     translation_summary: TranslationSummary | None = None
     preflight_summary: PreflightSummary | None = None
     execution_summary: ExecutionSummary | None = None
