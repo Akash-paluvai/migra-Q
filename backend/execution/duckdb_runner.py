@@ -88,6 +88,7 @@ def run_duckdb_execution(
             dataset_id=resolved_dataset.dataset_id,
             dataset_hash=resolved_dataset.dataset_hash,
             execution_mode=request.execution_mode,
+            dialect=request.dialect,
             status=ExecutionStatus.SECURITY_ERROR,
             timestamp=now_utc,
             duration_ms=0.0,
@@ -108,8 +109,55 @@ def run_duckdb_execution(
     import logging
     logger = logging.getLogger(__name__)
 
+    # ── Target Capability Analysis ──────────────────────────────────
     try:
         parsed = sqlglot.parse_one(request.sql, read=request.dialect)
+        
+        # Check if the query contains any functions that the target dialect 
+        # doesn't natively support AND weren't explicitly claimed by the translator.
+        if request.execution_mode == ExecutionMode.TARGET:
+            for node in parsed.walk():
+                if isinstance(node, exp.Anonymous):
+                    func_name = node.name.upper()
+                    if func_name not in [c.upper() for c in request.claimed_target_constructs]:
+                        # Target doesn't natively know it (hence Anonymous) AND translator didn't claim it
+                        return ExecutionResult(
+                            execution_id=execution_id,
+                            query_hash=q_hash,
+                            dataset_id=resolved_dataset.dataset_id,
+                            dataset_hash=resolved_dataset.dataset_hash,
+                            execution_mode=request.execution_mode,
+                            dialect=request.dialect,
+                            status=ExecutionStatus.TARGET_CAPABILITY_UNSUPPORTED,
+                            timestamp=now_utc,
+                            duration_ms=0.0,
+                            row_count=0,
+                            error_code="TARGET_CAPABILITY_UNSUPPORTED",
+                            error_message=json.dumps({
+                                "error_code": "TARGET_CAPABILITY_UNSUPPORTED",
+                                "dialect": request.dialect,
+                                "function": func_name,
+                                "message": f"The target dialect '{request.dialect}' does not support this function, and the translator did not claim it as a valid assumption."
+                            }, indent=2)
+                        )
+    except Exception as exc:
+        err = ExecutionTranspilationError(f"Could not parse {request.dialect} SQL: {exc}")
+        return ExecutionResult(
+            execution_id=execution_id,
+            query_hash=q_hash,
+            dataset_id=resolved_dataset.dataset_id,
+            dataset_hash=resolved_dataset.dataset_hash,
+            execution_mode=request.execution_mode,
+            dialect=request.dialect,
+            status=ExecutionStatus.EXECUTION_ERROR,
+            timestamp=now_utc,
+            duration_ms=0.0,
+            row_count=0,
+            error_code="TRANSPILATION_ERROR",
+            error_message=str(err),
+        )
+
+    try:
         analysis = analyze_and_transform(parsed, request.dialect)
         executable_sql = analysis.transformed_ast.sql(dialect="duckdb")
         compatibility_confidence = analysis.aggregate_confidence.value
@@ -128,6 +176,7 @@ def run_duckdb_execution(
             dataset_id=resolved_dataset.dataset_id,
             dataset_hash=resolved_dataset.dataset_hash,
             execution_mode=request.execution_mode,
+            dialect=request.dialect,
             status=ExecutionStatus.EXECUTION_ERROR,
             timestamp=now_utc,
             duration_ms=0.0,
@@ -147,7 +196,8 @@ def run_duckdb_execution(
             dataset_id=resolved_dataset.dataset_id,
             dataset_hash=resolved_dataset.dataset_hash,
             execution_mode=request.execution_mode,
-            status=ExecutionStatus.UNSUPPORTED_CAPABILITY,
+            dialect=request.dialect,
+            status=ExecutionStatus.SANDBOX_LIMITATION,
             timestamp=now_utc,
             duration_ms=0.0,
             row_count=0,
@@ -164,6 +214,7 @@ def run_duckdb_execution(
                 ),
             }, indent=2),
             compatibility_confidence=compatibility_confidence,
+            compatibility_diagnostics=analysis.diagnostics,
         )
 
     # 2. Execute within timeout boundary using ThreadPoolExecutor/Process
@@ -187,6 +238,7 @@ def run_duckdb_execution(
                 dataset_id=resolved_dataset.dataset_id,
                 dataset_hash=resolved_dataset.dataset_hash,
                 execution_mode=request.execution_mode,
+                dialect=request.dialect,
                 status=res_dict["status"],
                 timestamp=now_utc,
                 duration_ms=res_dict["duration_ms"],
@@ -198,6 +250,7 @@ def run_duckdb_execution(
                 error_code=res_dict["error_code"],
                 error_message=res_dict["error_message"],
                 compatibility_confidence=compatibility_confidence,
+                compatibility_diagnostics=analysis.diagnostics,
             )
         except concurrent.futures.TimeoutError:
             return ExecutionResult(
@@ -206,6 +259,7 @@ def run_duckdb_execution(
                 dataset_id=resolved_dataset.dataset_id,
                 dataset_hash=resolved_dataset.dataset_hash,
                 execution_mode=request.execution_mode,
+                dialect=request.dialect,
                 status=ExecutionStatus.TIMEOUT,
                 timestamp=now_utc,
                 duration_ms=EXECUTION_TIMEOUT_SECONDS * 1000.0,
@@ -213,6 +267,7 @@ def run_duckdb_execution(
                 error_code="TIMEOUT",
                 error_message=f"Query timed out after {EXECUTION_TIMEOUT_SECONDS}s.",
                 compatibility_confidence=compatibility_confidence,
+                compatibility_diagnostics=analysis.diagnostics,
             )
         except Exception as exc:
             import re
@@ -247,10 +302,9 @@ def run_duckdb_execution(
 
                 if missing_func:
                     # ── Case 1: Function genuinely missing from DuckDB ────
-                    # DuckDB has no implementation at all. This is a clear
-                    # sandbox capability gap.
+                    # DuckDB has no implementation at all. This is a sandbox limitation.
                     func_name = missing_func.group(1)
-                    err_type = ExecutionStatus.UNSUPPORTED_CAPABILITY
+                    err_type = ExecutionStatus.SANDBOX_LIMITATION
                     error_code = "SANDBOX_UNSUPPORTED_FUNCTION"
                     error_message = json.dumps({
                         "error_code": error_code,
@@ -283,7 +337,7 @@ def run_duckdb_execution(
                     if is_dialect_specific:
                         # Dialect-proprietary function whose signature
                         # DuckDB can't match → sandbox capability gap.
-                        err_type = ExecutionStatus.UNSUPPORTED_CAPABILITY
+                        err_type = ExecutionStatus.SANDBOX_LIMITATION
                         error_code = "SANDBOX_UNSUPPORTED_FUNCTION_SIGNATURE"
                         error_message = json.dumps({
                             "error_code": error_code,
@@ -329,6 +383,7 @@ def run_duckdb_execution(
                 dataset_id=resolved_dataset.dataset_id,
                 dataset_hash=resolved_dataset.dataset_hash,
                 execution_mode=request.execution_mode,
+                dialect=request.dialect,
                 status=err_type,
                 timestamp=now_utc,
                 duration_ms=0.0,
@@ -336,6 +391,7 @@ def run_duckdb_execution(
                 error_code=error_code,
                 error_message=error_message,
                 compatibility_confidence=compatibility_confidence,
+                compatibility_diagnostics=analysis.diagnostics,
             )
 
 
