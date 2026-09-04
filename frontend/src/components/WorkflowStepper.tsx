@@ -90,10 +90,13 @@ const STEP_DEFINITIONS: StepDefinition[] = [
       if (!rep.execution_summary) return { state: 'NOT_RUN', badgeText: 'NOT RUN' };
       const srcOk = rep.execution_summary.source_status === 'SUCCESS';
       const tgtOk = rep.execution_summary.target_status === 'SUCCESS';
-      const srcUnsupported = rep.execution_summary.source_status === 'UNSUPPORTED_CAPABILITY';
-      const tgtUnsupported = rep.execution_summary.target_status === 'UNSUPPORTED_CAPABILITY';
+      const srcSandboxLimitation = rep.execution_summary.source_status === 'SANDBOX_LIMITATION';
+      const tgtSandboxLimitation = rep.execution_summary.target_status === 'SANDBOX_LIMITATION';
+      const srcTargetUnsupported = rep.execution_summary.source_status === 'TARGET_CAPABILITY_UNSUPPORTED';
+      const tgtTargetUnsupported = rep.execution_summary.target_status === 'TARGET_CAPABILITY_UNSUPPORTED';
       if (srcOk && tgtOk) return { state: 'SUCCESS' };
-      if (srcUnsupported || tgtUnsupported) return { state: 'BLOCKED', badgeText: 'SANDBOX LIMITED' };
+      if (srcTargetUnsupported || tgtTargetUnsupported) return { state: 'FAILED', badgeText: 'UNSUPPORTED' };
+      if (srcSandboxLimitation || tgtSandboxLimitation) return { state: 'BLOCKED', badgeText: 'SANDBOX LIMITED' };
       if (!srcOk && tgtOk) return { state: 'FAILED', badgeText: 'SOURCE FAILED' };
       if (srcOk && !tgtOk) return { state: 'FAILED', badgeText: 'TARGET FAILED' };
       return { state: 'FAILED', badgeText: 'BOTH FAILED' };

@@ -126,6 +126,10 @@ export interface ExecutionSummary {
   target_execution_id: string;
   source_status: string;
   target_status: string;
+  source_dialect?: string;
+  target_dialect?: string;
+  source_compatibility_confidence?: string | null;
+  target_compatibility_confidence?: string | null;
   source_row_count: number;
   target_row_count: number;
   dataset_id: string;
@@ -230,6 +234,7 @@ export interface MigrationAssuranceReport {
   verification_path: VerificationPath;
   score: AssuranceScore;
   gate_evaluation: HardGateEvaluation;
+  source_preflight_summary?: PreflightSummary | null;
   translation_summary?: TranslationSummary | null;
   preflight_summary?: PreflightSummary | null;
   execution_summary?: ExecutionSummary | null;
