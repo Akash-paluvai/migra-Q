@@ -353,10 +353,27 @@ class MigrationAssuranceService:
                 final_status = MigrationFinalStatus.FAILED
                 decision_reason = f"Assurance evaluation could not be completed because translation failed: {err_msg}"
         elif source_execution is None or target_execution is None or not (source_succeeded and target_succeeded):
-            if (source_execution and source_execution.status == "UNSUPPORTED_CAPABILITY") or \
-               (target_execution and target_execution.status == "UNSUPPORTED_CAPABILITY"):
+            if (source_execution and source_execution.status == "TARGET_CAPABILITY_UNSUPPORTED") or \
+               (target_execution and target_execution.status == "TARGET_CAPABILITY_UNSUPPORTED"):
+                final_status = MigrationFinalStatus.FAILED
+                unsupported_side = "source" if (source_execution and source_execution.status == "TARGET_CAPABILITY_UNSUPPORTED") else "target"
+                unsupported_dialect = (source_execution.dialect if unsupported_side == "source" else target_execution.dialect) if (source_execution and target_execution) else ""
+                decision_reason = (
+                    f"The {unsupported_side} SQL ({unsupported_dialect}) contains capabilities "
+                    f"not supported by the target dialect itself."
+                )
+            elif (source_execution and source_execution.status == "SANDBOX_LIMITATION") or \
+               (target_execution and target_execution.status == "SANDBOX_LIMITATION"):
                 final_status = MigrationFinalStatus.INCONCLUSIVE
-                decision_reason = "Execution sandbox lacks compatible adapter for dialect function."
+                limited_sides = []
+                if source_execution and source_execution.status == "SANDBOX_LIMITATION":
+                    limited_sides.append(f"source ({source_execution.dialect or 'unknown'})")
+                if target_execution and target_execution.status == "SANDBOX_LIMITATION":
+                    limited_sides.append(f"target ({target_execution.dialect or 'unknown'})")
+                decision_reason = (
+                    f"The DuckDB sandbox cannot execute the {' and '.join(limited_sides)} "
+                    f"query. Semantic equivalence remains unproven."
+                )
             else:
                 final_status = MigrationFinalStatus.FAILED
                 decision_reason = "Assurance evaluation could not be completed because execution failed."
@@ -542,12 +559,20 @@ class MigrationAssuranceService:
                 execution_mode=ExecutionMode.SOURCE,
             )
         )
+        # Extract claimed constructs from translation rules to inform Target Capability Analysis
+        claimed_constructs = []
+        if trans_res and trans_res.response and trans_res.response.translated_rules:
+            for rule in trans_res.response.translated_rules:
+                # E.g., if rule.target_expression is "FARM_FINGERPRINT", capture it
+                claimed_constructs.append(rule.target_expression.upper())
+                
         tgt_exec = ExecutionService.execute(
             ExecutionRequest(
                 sql=candidate_sql,
                 dialect=target_dialect,
                 dataset_id=dataset_id,
                 execution_mode=ExecutionMode.TARGET,
+                claimed_target_constructs=claimed_constructs,
             )
         )
 

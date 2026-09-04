@@ -195,6 +195,10 @@ class ExecutionSummary(BaseModel):
     target_execution_id: str
     source_status: str
     target_status: str
+    source_dialect: str = ""
+    target_dialect: str = ""
+    source_compatibility_confidence: str | None = None
+    target_compatibility_confidence: str | None = None
     source_row_count: int = 0
     target_row_count: int = 0
     dataset_id: str = ""
