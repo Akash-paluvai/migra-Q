@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 
 from backend.execution.duckdb_runner import run_duckdb_execution, _is_function_dialect_specific
-from backend.execution.models import ExecutionRequest
+from backend.execution.models import ExecutionRequest, ExecutionMode
 from backend.execution.dataset_loader import ResolvedDataset
 from backend.execution.dialect_transforms.base import (
     SemanticConfidence,
@@ -40,14 +40,21 @@ def make_dataset():
     )
 
 
-def run_test(name, sql, dialect="teradata", expected_status=None, expected_code=None, expected_confidence=None):
+def run_test(name, sql, dialect="teradata", expected_status=None, expected_code=None, expected_confidence=None, execution_mode=ExecutionMode.SOURCE, claimed_target_constructs=None):
     print(f"\n{'='*70}")
     print(f"  {name}")
     print(f"{'='*70}")
     print(f"  SQL:      {sql}")
     print(f"  Dialect:  {dialect}")
+    print(f"  Mode:     {execution_mode.name}")
 
-    req = ExecutionRequest(sql=sql, dialect=dialect, dataset_id="join_semantics")
+    req = ExecutionRequest(
+        sql=sql, 
+        dialect=dialect, 
+        dataset_id="join_semantics",
+        execution_mode=execution_mode,
+        claimed_target_constructs=claimed_target_constructs or []
+    )
     res = run_duckdb_execution(req, make_dataset())
 
     status = res.status.value
@@ -62,7 +69,7 @@ def run_test(name, sql, dialect="teradata", expected_status=None, expected_code=
         try:
             err = json.loads(res.error_message)
             print(f"  Function:   {err.get('function', 'N/A')}")
-        except json.JSONDecodeError:
+        except json.DecodeError:
             pass
 
     passed = True
@@ -110,10 +117,12 @@ if __name__ == "__main__":
     ))
 
     results.append(run_test(
-        "C  Unknown proprietary function",
+        "C  Unknown proprietary function (Target Capability Unsupported)",
         "SELECT SOME_COMPLETELY_UNKNOWN_FUNCTION(123) AS val",
-        expected_status="UNSUPPORTED_CAPABILITY",
-        expected_code="SANDBOX_UNSUPPORTED_FUNCTION",
+        dialect="bigquery",
+        execution_mode=ExecutionMode.TARGET,
+        claimed_target_constructs=[],
+        expected_status="TARGET_CAPABILITY_UNSUPPORTED",
     ))
 
     results.append(run_test(
@@ -196,6 +205,122 @@ if __name__ == "__main__":
     analysis2 = analyze_and_transform(parsed2, "teradata")
     assert analysis2.aggregate_confidence == SemanticConfidence.EXACT
     print(f"  Generic SQL → confidence={analysis2.aggregate_confidence.value} ✓")
+
+    print(f"  ✓ PASS")
+    results.append(True)
+
+    # ── Target Capability vs Sandbox Limitation Boundaries ────────
+    print(f"\n{'='*70}")
+    print(f"  H  Assurance Service Boundary Proofs")
+    print(f"{'='*70}")
+
+    from backend.assurance.service import MigrationAssuranceService
+    from backend.execution.models import ExecutionRequest, ExecutionResult, ExecutionStatus, ExecutionMode
+    from backend.validation.models import ValidationReport
+    from backend.translator.models import TranslationResult, TranslationResponse, CandidateValidationStatus, TranslationMetadata
+    from backend.translator.models import TranslationStatus
+
+    def dummy_exec(status, conf="EXACT"):
+        return ExecutionResult(
+            execution_id="dummy", query_hash="dummy", dataset_id="dummy", dataset_hash="dummy",
+            status=status, compatibility_confidence=conf
+        )
+
+    # Test A: BigQuery + FARM_FINGERPRINT -> TARGET SUPPORTED -> SANDBOX_LIMITATION -> INCONCLUSIVE
+    # duckdb_runner test:
+    req_a = ExecutionRequest(
+        sql="SELECT FARM_FINGERPRINT('test')", 
+        dialect="bigquery", 
+        dataset_id="join_semantics", 
+        execution_mode=ExecutionMode.TARGET,
+        claimed_target_constructs=["FARM_FINGERPRINT"]
+    )
+    res_a = run_duckdb_execution(req_a, make_dataset())
+    assert res_a.status == ExecutionStatus.SANDBOX_LIMITATION
+    print("  Test A (Runner): Valid target function fails in Sandbox -> SANDBOX_LIMITATION ✓")
+    
+    # Assurance test for Test A:
+    service = MigrationAssuranceService()
+    src_a = dummy_exec(ExecutionStatus.SUCCESS)
+    tgt_a = dummy_exec(ExecutionStatus.SANDBOX_LIMITATION)
+    report_a = service.evaluate_assurance(
+        migration_id="dummy_a",
+        source_execution=src_a, 
+        target_execution=tgt_a
+    )
+    assert report_a.final_status.name == "INCONCLUSIVE"
+    assert "DuckDB sandbox cannot execute" in report_a.decision_reason
+    print("  Test A (Assurance): SANDBOX_LIMITATION -> INCONCLUSIVE ✓")
+
+    # Test B: Deliberately invalid target function -> TARGET_CAPABILITY_UNSUPPORTED
+    req_b = ExecutionRequest(
+        sql="SELECT FAKE_BQ_FUNC('test')", 
+        dialect="bigquery", 
+        dataset_id="join_semantics", 
+        execution_mode=ExecutionMode.TARGET,
+        claimed_target_constructs=[]
+    )
+    res_b = run_duckdb_execution(req_b, make_dataset())
+    assert res_b.status == ExecutionStatus.TARGET_CAPABILITY_UNSUPPORTED
+    print("  Test B (Runner): Invalid target function -> TARGET_CAPABILITY_UNSUPPORTED ✓")
+    
+    src_b = dummy_exec(ExecutionStatus.SUCCESS)
+    tgt_b = dummy_exec(ExecutionStatus.TARGET_CAPABILITY_UNSUPPORTED)
+    report_b = service.evaluate_assurance(
+        migration_id="dummy_b",
+        source_execution=src_b,
+        target_execution=tgt_b
+    )
+    assert report_b.final_status.name == "FAILED"
+    print("  Test B (Assurance): TARGET_CAPABILITY_UNSUPPORTED -> FAILED ✓")
+
+    # Test C: Ordinary missing column -> EXECUTION_ERROR
+    print("  Test C is covered by test 'D  Missing column' above ✓")
+
+    # Test D & E: APPROXIMATION always yields INCONCLUSIVE even if execution succeeds
+    src_e = dummy_exec(ExecutionStatus.SUCCESS, conf="EXACT")
+    tgt_e = dummy_exec(ExecutionStatus.SUCCESS, conf="APPROXIMATION")
+    val_e = ValidationReport(
+        validation_id="dummy_val",
+        migration_id="dummy_e",
+        source_execution_id="dummy_src",
+        target_execution_id="dummy_tgt",
+        overall_status="PASS",
+        checks=[],
+        summary_text="Match",
+        discrepancy_categories={},
+        is_order_dependent=False
+    )
+    dummy_trans = TranslationResult(
+        status=TranslationStatus.SUCCESS,
+        candidate_validation_status=CandidateValidationStatus.VALID_SYNTAX,
+        response=TranslationResponse(target_sql="SELECT 1", translated_rules=[], skipped_rules=[]),
+        metadata=TranslationMetadata(
+            translation_id="dummy",
+            migration_id="dummy",
+            dataset_id="dummy",
+            request_id="dummy",
+            provider="dummy",
+            model="dummy",
+            source_dialect="dummy",
+            target_dialect="dummy",
+            source_sql_hash="dummy",
+            translation_context_hash="dummy",
+            prompt_hash="dummy",
+            created_at="dummy",
+        ),
+    )
+    
+    report_e = service.evaluate_assurance(
+        migration_id="dummy_e",
+        translation_result=dummy_trans,
+        source_execution=src_e,
+        target_execution=tgt_e,
+        validation_report=val_e
+    )
+    assert report_e.final_status.name == "INCONCLUSIVE"
+    assert "insufficient semantic confidence" in report_e.decision_reason
+    print("  Test D & E (Assurance): APPROXIMATION + Execution SUCCESS + Validation PASS -> INCONCLUSIVE ✓")
 
     print(f"  ✓ PASS")
     results.append(True)

@@ -1,0 +1,6 @@
+{
+    "target_sql": "SELECT c.customer_id, COALESCE(a.balance, 0) AS account_balance, NULLIF(c.credit_score, 0) AS normalized_credit_score FROM customers c LEFT JOIN accounts a ON c.customer_id = a.customer_id WHERE c.status = 'ACTIVE'",
+    "assumptions": ["ZEROIFNULL translated to COALESCE"],
+    "potential_risks": [],
+    "translated_rules": []
+}
