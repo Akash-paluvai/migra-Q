@@ -423,8 +423,8 @@ class MigrationOrchestrator:
         record.dataset_hash = src_exec.dataset_hash
 
         if src_exec.status != ExecutionStatus.SUCCESS or tgt_exec.status != ExecutionStatus.SUCCESS:
-            src_unsupported = src_exec.status == ExecutionStatus.UNSUPPORTED_CAPABILITY
-            tgt_unsupported = tgt_exec.status == ExecutionStatus.UNSUPPORTED_CAPABILITY
+            src_unsupported = src_exec.status in (ExecutionStatus.SANDBOX_LIMITATION, ExecutionStatus.TARGET_CAPABILITY_UNSUPPORTED)
+            tgt_unsupported = tgt_exec.status in (ExecutionStatus.SANDBOX_LIMITATION, ExecutionStatus.TARGET_CAPABILITY_UNSUPPORTED)
             if src_unsupported or tgt_unsupported:
                 logger.warning(
                     f"[MigrationOrchestrator] [{migration_id}] Execution halted: sandbox lacks capability "

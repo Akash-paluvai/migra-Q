@@ -150,6 +150,22 @@ GROUP BY c.customer_id, c.customer_segment, t.amount;""",
                     }
                 ],
             }
+        elif self.mode == "MOCK_SQLGLOT":
+            import sqlglot
+            try:
+                target_sql = sqlglot.transpile(
+                    context.source_sql, 
+                    read=context.source_dialect, 
+                    write=context.target_dialect
+                )[0]
+            except Exception:
+                target_sql = context.source_sql
+            payload = {
+                "target_sql": target_sql,
+                "assumptions": ["SQLGlot deterministic translation"],
+                "potential_risks": [],
+                "translated_rules": []
+            }
         elif self.mode in ("MOCK_NVL_COALESCE", "MOCK_ZERO_TRANSFORMATIONS", "MOCK_MULTIPLE_TRANSFORMATIONS"):
             import os
             
