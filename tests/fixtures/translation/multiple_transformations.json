@@ -1,0 +1,19 @@
+{
+  "target_sql": "SELECT CASE WHEN customer_id IS NOT NULL THEN COALESCE(amount, 0) END FROM customers",
+  "assumptions": ["Assumes target warehouse uses UTC timestamps."],
+  "potential_risks": [],
+  "translated_rules": [
+    {
+      "source_path": "select_clause",
+      "source_expression": "NVL",
+      "target_expression": "COALESCE",
+      "rule_type": "FUNCTION_MAPPING"
+    },
+    {
+      "source_path": "select_clause",
+      "source_expression": "DECODE",
+      "target_expression": "CASE",
+      "rule_type": "FUNCTION_MAPPING"
+    }
+  ]
+}

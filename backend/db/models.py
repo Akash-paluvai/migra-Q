@@ -315,3 +315,35 @@ class MigrationAssuranceReportModel(Base):
     report_json = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
+
+class SQLCandidateVersionModel(Base):
+    __tablename__ = "sql_candidate_versions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(String(64), unique=True, index=True, nullable=False)
+    migration_id = Column(String(64), index=True, nullable=False)
+    version = Column(Integer, nullable=False)
+    sql_text = Column(Text, nullable=False)
+    source = Column(String(32), nullable=False) # AI, USER, REPAIR
+    parent_version_id = Column(String(64), nullable=True)
+    source_candidate_id = Column(String(64), nullable=True)
+    preflight_status = Column(String(32), nullable=True)
+    preflight_summary_json = Column(Text, nullable=True)
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+class SQLSourceCandidateVersionModel(Base):
+    __tablename__ = "sql_source_candidate_versions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(String(64), unique=True, index=True, nullable=False)
+    migration_id = Column(String(64), index=True, nullable=False)
+    version = Column(Integer, nullable=False)
+    sql_text = Column(Text, nullable=False)
+    origin = Column(String(32), nullable=False) # ORIGINAL, USER
+    dialect = Column(String(32), nullable=False)
+    preflight_status = Column(String(32), nullable=True)
+    preflight_summary_json = Column(Text, nullable=True)
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_by = Column(String(64), nullable=True)

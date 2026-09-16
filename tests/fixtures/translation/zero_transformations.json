@@ -1,0 +1,6 @@
+{
+  "target_sql": "SELECT customer_name FROM customers",
+  "assumptions": [],
+  "potential_risks": [],
+  "translated_rules": []
+}

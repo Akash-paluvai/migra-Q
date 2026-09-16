@@ -21,6 +21,8 @@ class ExecutionStatus(str, Enum):
     SECURITY_ERROR = "SECURITY_ERROR"
     TIMEOUT = "TIMEOUT"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+    SANDBOX_LIMITATION = "SANDBOX_LIMITATION"
+    TARGET_CAPABILITY_UNSUPPORTED = "TARGET_CAPABILITY_UNSUPPORTED"
 
 
 class ColumnSchema(BaseModel):
@@ -35,15 +37,19 @@ class ExecutionRequest(BaseModel):
     dataset_dir: str | None = None
     execution_mode: ExecutionMode = ExecutionMode.SOURCE
     migration_id: str | None = None
+    candidate_id: str | None = None
     label: str | None = None
+    claimed_target_constructs: list[str] = Field(default_factory=list)
 
 class ExecutionResult(BaseModel):
     execution_id: str
     migration_id: str | None = None
+    candidate_id: str | None = None
     query_hash: str
     dataset_id: str
     dataset_hash: str
     execution_mode: ExecutionMode = ExecutionMode.SOURCE
+    dialect: str = ""
     status: ExecutionStatus
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     duration_ms: float = 0.0
@@ -56,3 +62,6 @@ class ExecutionResult(BaseModel):
     error_message: str | None = None
     engine: str = "duckdb"
     engine_version: str = "1.0"
+    compatibility_confidence: str | None = None
+    compatibility_diagnostics: list[dict[str, Any]] = Field(default_factory=list)
+

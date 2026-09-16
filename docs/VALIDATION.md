@@ -42,3 +42,14 @@ Executes the generated SQL against boundary conditions injected into the DuckDB 
 A critical function of the Validation Engine is its pre-comparison normalization. For example, if Oracle returns a missing value as a specific internal representation, and Snowflake returns `NULL`, the engine normalizes these to a unified representation *before* asserting equality.
 
 If the Row Validator finds that Row 5, Column 'Risk_Score' is `NULL` in the source but `0` in the target, it throws a `Semantic Discrepancy`. This discrepancy is then passed as evidence to the AI Diagnosis agent.
+
+## Assurance Gating & Semantic Confidence
+
+The Validation Engine determines if two result sets are mathematically equivalent in DuckDB. However, passing Validation is necessary but **not sufficient** for a `VERIFIED` Assurance score.
+
+Migra-Q enforces a **Semantic Confidence Contract**:
+1. If the Dialect Compatibility Adapters had to apply an `APPROXIMATION` (e.g., polyfilling Teradata's `HASHROW` with BigQuery's `FARM_FINGERPRINT`) or an `UNKNOWN` transformation just to get the query to run in the sandbox...
+2. Then the Validation Engine's "Success" is inherently flawed, because it is comparing approximations rather than true semantic equivalents.
+3. In these cases, the Assurance Gate intercepts the Validation Success and immediately coerces the final status to `INCONCLUSIVE`. 
+
+AI repairs and AI diagnoses **cannot override** this hard capability limitation. A migration can only be `VERIFIED` if the sandbox execution utilized transformations with `EXACT` or `SAFE_EQUIVALENT` semantic confidence across the entire AST.

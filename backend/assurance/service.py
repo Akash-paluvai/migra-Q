@@ -21,7 +21,7 @@ from backend.assurance.models import (
     VerificationPath,
 )
 from backend.assurance.repository import MigrationAssuranceRepository
-from backend.assurance.scoring import AssuranceScorer
+from backend.assurance.scoring import AssuranceScorer, AssuranceScore
 from backend.assurance.state import MigrationStateMachine
 from backend.assurance.summary import SummaryBuilder
 from backend.core.logging import get_logger
@@ -94,10 +94,47 @@ class MigrationAssuranceService:
         self._repository.save_migration(record)
         return record
 
+    def reset_downstream_pipeline_state(self, migration_id: str, candidate_id: str, preflight_summary: PreflightSummary | None = None) -> None:
+        """Wipes all downstream evidence from the assurance report for a clean execution restart."""
+        report = self._repository.get_assurance_report(migration_id)
+        if report:
+            report.execution_summary = None
+            report.validation_summary = None
+            report.discrepancy_summary = None
+            report.diagnosis_summary = None
+            report.repair_summary = None
+            report.verification_summary = None
+            report.score = AssuranceScore()
+            report.candidate_id = candidate_id
+            
+            if preflight_summary:
+                report.preflight_summary = preflight_summary
+            
+            # Reset Final Status but keep preflight PASS block if it's there?
+            if preflight_summary and preflight_summary.status == "BLOCKED":
+                report.final_status = MigrationFinalStatus.BLOCKED
+                report.decision_reason = "Candidate blocked by schema preflight."
+            else:
+                report.final_status = MigrationFinalStatus.IN_PROGRESS
+                report.decision_reason = "Pipeline restart for corrected candidate."
+            self._repository.save_assurance_report(report)
+            
+        record = self._repository.get_migration(migration_id)
+        if record:
+            if preflight_summary and preflight_summary.status == "BLOCKED":
+                record.final_status = MigrationFinalStatus.BLOCKED
+                record.current_state = MigrationState.TRANSLATED
+            else:
+                record.final_status = MigrationFinalStatus.IN_PROGRESS
+                record.current_state = MigrationState.CREATED # Reset to beginning of runtime
+            record.assurance_score = None
+            record.evidence_coverage = None
+            self._repository.save_migration(record)
+
     def evaluate_assurance(
         self,
         migration_id: str,
-        translation_result: TranslationResult,
+        translation_result: TranslationResult | None = None,
         preflight_summary: PreflightSummary | None = None,
         source_execution: ExecutionResult | None = None,
         target_execution: ExecutionResult | None = None,
@@ -106,6 +143,8 @@ class MigrationAssuranceService:
         diagnosis_ai_result: DiagnosisAIResult | None = None,
         repair_verification_result: RepairVerificationResult | None = None,
         validation_report_after: ValidationReport | None = None,
+        candidate_id: str | None = None,
+        source_preflight_summary: PreflightSummary | None = None,
     ) -> MigrationAssuranceReport:
         """Evaluate migration assurance from Phase 1–8 artifacts."""
         from backend.core.consistency_validator import ArtifactStateConsistencyValidator
@@ -115,13 +154,20 @@ class MigrationAssuranceService:
         # 0. Enforce Universal Lineage Boundary & SHA256 Hash Invariant
         migration = self._repository.get_migration(migration_id)
         if migration:
+            active_src = get_active_source_candidate(migration_id)
+            expected_src_hash = active_src.sql_hash if (active_src and hasattr(active_src, 'sql_hash') and active_src.sql_hash) else migration.source_sql_hash
+            # Fallback for hash computation if not present on active_src but active_src exists
+            if active_src and (not hasattr(active_src, 'sql_hash') or not active_src.sql_hash):
+                import hashlib
+                expected_src_hash = hashlib.sha256(active_src.sql_text.encode('utf-8')).hexdigest()[:16]
+
             if hasattr(translation_result, "metadata") and translation_result.metadata:
                 t_mid = getattr(translation_result.metadata, "migration_id", None)
                 t_hash = getattr(translation_result.metadata, "source_sql_hash", None)
                 if t_mid and t_mid != migration_id:
                     raise ValueError(f"ARTIFACT_LINEAGE_MISMATCH: Translation artifact migration_id '{t_mid}' != '{migration_id}'")
-                if t_hash and t_hash != migration.source_sql_hash:
-                    raise ValueError(f"ARTIFACT_LINEAGE_MISMATCH: Translation source_sql_hash '{t_hash}' != '{migration.source_sql_hash}'")
+                if t_hash and t_hash != expected_src_hash:
+                    raise ValueError(f"ARTIFACT_LINEAGE_MISMATCH: Translation source_sql_hash '{t_hash}' != expected '{expected_src_hash}'")
 
             for exec_res in [source_execution, target_execution]:
                 if exec_res is not None:
@@ -139,8 +185,27 @@ class MigrationAssuranceService:
                 if d_mid and d_mid != migration_id:
                     raise ValueError(f"ARTIFACT_LINEAGE_MISMATCH: Discrepancy artifact migration_id '{d_mid}' != '{migration_id}'")
 
-        # 1. Build summaries
-        translation_summary = self._summary_builder.build_translation_summary(translation_result)
+        # 1. Build or preserve summaries
+        existing_report = self._repository.get_assurance_report(migration_id)
+        
+        if translation_result:
+            translation_summary = self._summary_builder.build_translation_summary(translation_result)
+        else:
+            translation_summary = existing_report.translation_summary if existing_report else None
+            
+        if preflight_summary:
+            # preflight_summary is already a PreflightSummary model
+            pass
+        else:
+            preflight_summary = existing_report.preflight_summary if existing_report else None
+            
+        if source_preflight_summary is None:
+            active_src = get_active_source_candidate(migration_id)
+            if active_src and active_src.preflight_summary:
+                source_preflight_summary = active_src.preflight_summary
+            elif existing_report:
+                source_preflight_summary = existing_report.source_preflight_summary
+
         execution_summary = self._summary_builder.build_execution_summary(
             source_execution, target_execution
         )
@@ -203,7 +268,7 @@ class MigrationAssuranceService:
 
         # 5. Build audit lineage
         lineage = self._lineage_builder.build(
-            translation_id=translation_result.metadata.translation_id,
+            translation_id=translation_summary.translation_id if translation_summary else "",
             source_execution_id=source_execution.execution_id if source_execution else "",
             target_execution_id=target_execution.execution_id if target_execution else "",
             validation_id=validation_report.validation_id if validation_report else "",
@@ -226,7 +291,8 @@ class MigrationAssuranceService:
         source_succeeded = (source_execution.status == ExecutionStatus.SUCCESS) if source_execution else False
         target_succeeded = (target_execution.status == ExecutionStatus.SUCCESS) if target_execution else False
         translation_valid = (
-            translation_result.candidate_validation_status == CandidateValidationStatus.VALID_SYNTAX
+            translation_result.candidate_validation_status.value == "VALID_SYNTAX" if translation_result and translation_result.candidate_validation_status else
+            (translation_summary.candidate_validation_status == "VALID_SYNTAX" if translation_summary else False)
         )
         schema_valid = self._check_schema_valid(validation_report) if validation_report else False
         has_unresolved_critical = self._check_unresolved_critical(discrepancy_report, repair_verification_result)
@@ -274,9 +340,9 @@ class MigrationAssuranceService:
         )
 
         # If translation or execution failed, provide explicit technical failure reason
-        if translation_result.status != TranslationStatus.SUCCESS:
-            err_code = translation_result.metadata.error_code if translation_result.metadata else None
-            err_msg = translation_result.metadata.error_message if translation_result.metadata else translation_result.validation_summary or translation_result.status.value
+        if translation_summary and translation_summary.status != "SUCCESS":
+            err_code = translation_result.metadata.error_code if translation_result and translation_result.metadata else None
+            err_msg = translation_result.metadata.error_message if translation_result and translation_result.metadata else (translation_result.validation_summary or translation_result.status.value if translation_result else translation_summary.status)
             if err_code == "PROVIDER_TOKEN_EXHAUSTED":
                 final_status = MigrationFinalStatus.BLOCKED_PROVIDER_LIMIT
                 decision_reason = "LLM provider daily token limit exhausted."
@@ -287,9 +353,48 @@ class MigrationAssuranceService:
                 final_status = MigrationFinalStatus.FAILED
                 decision_reason = f"Assurance evaluation could not be completed because translation failed: {err_msg}"
         elif source_execution is None or target_execution is None or not (source_succeeded and target_succeeded):
-            final_status = MigrationFinalStatus.FAILED
-            decision_reason = "Assurance evaluation could not be completed because execution failed."
-        elif diagnosis_ai_result and diagnosis_ai_result.metadata.error_code in ("PROVIDER_TOKEN_EXHAUSTED", "PROVIDER_TIMEOUT"):
+            if (source_execution and source_execution.status == "TARGET_CAPABILITY_UNSUPPORTED") or \
+               (target_execution and target_execution.status == "TARGET_CAPABILITY_UNSUPPORTED"):
+                final_status = MigrationFinalStatus.FAILED
+                unsupported_side = "source" if (source_execution and source_execution.status == "TARGET_CAPABILITY_UNSUPPORTED") else "target"
+                unsupported_dialect = (source_execution.dialect if unsupported_side == "source" else target_execution.dialect) if (source_execution and target_execution) else ""
+                decision_reason = (
+                    f"The {unsupported_side} SQL ({unsupported_dialect}) contains capabilities "
+                    f"not supported by the target dialect itself."
+                )
+            elif (source_execution and source_execution.status == "SANDBOX_LIMITATION") or \
+               (target_execution and target_execution.status == "SANDBOX_LIMITATION"):
+                final_status = MigrationFinalStatus.INCONCLUSIVE
+                limited_sides = []
+                if source_execution and source_execution.status == "SANDBOX_LIMITATION":
+                    limited_sides.append(f"source ({source_execution.dialect or 'unknown'})")
+                if target_execution and target_execution.status == "SANDBOX_LIMITATION":
+                    limited_sides.append(f"target ({target_execution.dialect or 'unknown'})")
+                decision_reason = (
+                    f"The DuckDB sandbox cannot execute the {' and '.join(limited_sides)} "
+                    f"query. Semantic equivalence remains unproven."
+                )
+            else:
+                final_status = MigrationFinalStatus.FAILED
+                decision_reason = "Assurance evaluation could not be completed because execution failed."
+
+        # ── Semantic confidence gate ──────────────────────────────────
+        # Even if execution succeeded, APPROXIMATION or UNKNOWN confidence
+        # means the adapter could not prove semantic equivalence.
+        # VERIFIED requires EXACT or SAFE_EQUIVALENT on both sides.
+        if final_status not in (MigrationFinalStatus.FAILED, MigrationFinalStatus.BLOCKED, MigrationFinalStatus.BLOCKED_PROVIDER_LIMIT):
+            src_conf = getattr(source_execution, "compatibility_confidence", None) if source_execution else None
+            tgt_conf = getattr(target_execution, "compatibility_confidence", None) if target_execution else None
+            risky_confidences = {"APPROXIMATION", "UNKNOWN"}
+            if (src_conf and src_conf in risky_confidences) or (tgt_conf and tgt_conf in risky_confidences):
+                final_status = MigrationFinalStatus.INCONCLUSIVE
+                decision_reason = (
+                    "Translation contains transformations with insufficient semantic confidence "
+                    f"(source={src_conf or 'N/A'}, target={tgt_conf or 'N/A'}). "
+                    "VERIFIED requires EXACT or SAFE_EQUIVALENT confidence on both sides."
+                )
+
+        if final_status is None and diagnosis_ai_result and diagnosis_ai_result.metadata.error_code in ("PROVIDER_TOKEN_EXHAUSTED", "PROVIDER_TIMEOUT"):
             err_code = diagnosis_ai_result.metadata.error_code
             if err_code == "PROVIDER_TOKEN_EXHAUSTED":
                 final_status = MigrationFinalStatus.BLOCKED_PROVIDER_LIMIT
@@ -299,12 +404,15 @@ class MigrationAssuranceService:
                 decision_reason = "LLM provider request timed out during diagnosis."
 
         # 10. Validate State Consistency
+        active_candidate = get_active_candidate(migration_id)
+        candidate_sql = active_candidate.sql_text if active_candidate else None
+        
         ArtifactStateConsistencyValidator.validate_full_pipeline_state(
-            translation_status=translation_result.status.value,
-            target_sql=translation_result.response.target_sql if translation_result.response else None,
+            translation_status=translation_result.status.value if translation_result else (translation_summary.status if translation_summary else "FAILED"),
+            target_sql=candidate_sql or (translation_result.response.target_sql if translation_result and translation_result.response else (translation_summary.candidate_sql if translation_summary else None)),
             candidate_validation_status=(
                 translation_result.candidate_validation_status.value
-                if translation_result.candidate_validation_status else None
+                if translation_result and translation_result.candidate_validation_status else (translation_summary.candidate_validation_status if translation_summary else None)
             ),
             target_execution_status=target_execution.status.value if target_execution else None,
             validation_status=validation_report.overall_status if validation_report else None,
@@ -325,11 +433,13 @@ class MigrationAssuranceService:
         duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         report = MigrationAssuranceReport(
             migration_id=migration_id,
+            candidate_id=candidate_id or (existing_report.candidate_id if existing_report else None),
             final_status=final_status,
             decision_reason=decision_reason,
             score=score,
             gate_evaluation=gate_evaluation,
             verification_path=verification_path,
+            source_preflight_summary=source_preflight_summary,
             translation_summary=translation_summary,
             preflight_summary=preflight_summary,
             execution_summary=execution_summary,
@@ -418,11 +528,24 @@ class MigrationAssuranceService:
         from backend.validation.service import ValidationService
 
         # 1. AI Translation
+        from backend.datasets.registry import DatasetRegistry
+        from backend.translator.models import SchemaContext, TableSchema, ColumnSchemaDef
+        registry = DatasetRegistry()
+        dataset = registry.get_dataset(dataset_id)
+        schema_context = None
+        if dataset:
+            tables = []
+            for t in dataset.table_summaries:
+                cols = [ColumnSchemaDef(name=c.name, type=c.data_type) for c in t.columns]
+                tables.append(TableSchema(name=t.table_name, columns=cols))
+            schema_context = SchemaContext(tables=tables)
+            
         trans_req = TranslationRequest(
             source_sql=source_sql,
             source_dialect=source_dialect,
             target_dialect=target_dialect,
             dataset_id=dataset_id,
+            schema_context=schema_context,
         )
         trans_res = TranslationService.translate(trans_req, mock_mode=mock_mode)
         candidate_sql = trans_res.response.target_sql if trans_res.response and trans_res.response.target_sql else source_sql
@@ -436,12 +559,20 @@ class MigrationAssuranceService:
                 execution_mode=ExecutionMode.SOURCE,
             )
         )
+        # Extract claimed constructs from translation rules to inform Target Capability Analysis
+        claimed_constructs = []
+        if trans_res and trans_res.response and trans_res.response.translated_rules:
+            for rule in trans_res.response.translated_rules:
+                # E.g., if rule.target_expression is "FARM_FINGERPRINT", capture it
+                claimed_constructs.append(rule.target_expression.upper())
+                
         tgt_exec = ExecutionService.execute(
             ExecutionRequest(
                 sql=candidate_sql,
                 dialect=target_dialect,
                 dataset_id=dataset_id,
                 execution_mode=ExecutionMode.TARGET,
+                claimed_target_constructs=claimed_constructs,
             )
         )
 
@@ -586,7 +717,139 @@ class MigrationAssuranceService:
             MigrationFinalStatus.BLOCKED: MigrationState.BLOCKED,
             MigrationFinalStatus.BLOCKED_PROVIDER_LIMIT: MigrationState.FAILED,
             MigrationFinalStatus.FAILED: MigrationState.FAILED,
+            MigrationFinalStatus.INCONCLUSIVE: MigrationState.FAILED,
             MigrationFinalStatus.ERROR: MigrationState.ERROR,
             MigrationFinalStatus.IN_PROGRESS: MigrationState.VALIDATING,
         }
         return mapping.get(status, MigrationState.ERROR)
+import uuid
+import json
+from backend.db.database import get_db_session
+from backend.db.models import SQLCandidateVersionModel, SQLSourceCandidateVersionModel
+from backend.assurance.models import SQLCandidateVersion, PreflightSummary, SQLSourceCandidateVersion
+
+def create_candidate_version(migration_id: str, sql_text: str, source: str, parent_version_id: str | None = None) -> SQLCandidateVersion:
+    with get_db_session() as session:
+        # Get next version number
+        latest = session.query(SQLCandidateVersionModel).filter_by(migration_id=migration_id).order_by(SQLCandidateVersionModel.version.desc()).first()
+        version = (latest.version + 1) if latest else 1
+
+        # Deactivate previous
+        session.query(SQLCandidateVersionModel).filter_by(migration_id=migration_id).update({"is_active": 0})
+        
+        cand_id = f"CAND-{uuid.uuid4().hex[:8].upper()}"
+        
+        new_model = SQLCandidateVersionModel(
+            candidate_id=cand_id,
+            migration_id=migration_id,
+            version=version,
+            sql_text=sql_text,
+            source=source,
+            parent_version_id=parent_version_id,
+            is_active=1
+        )
+        session.add(new_model)
+        session.commit()
+        
+        return SQLCandidateVersion(
+            candidate_id=cand_id,
+            migration_id=migration_id,
+            version=version,
+            sql_text=sql_text,
+            source=source,
+            parent_version_id=parent_version_id,
+            is_active=True,
+            created_at=new_model.created_at.isoformat()
+        )
+
+def get_active_candidate(migration_id: str) -> SQLCandidateVersion | None:
+    with get_db_session() as session:
+        model = session.query(SQLCandidateVersionModel).filter_by(migration_id=migration_id, is_active=1).first()
+        if not model:
+            return None
+        preflight_summary = None
+        if model.preflight_summary_json:
+            preflight_summary = PreflightSummary.model_validate_json(model.preflight_summary_json)
+        return SQLCandidateVersion(
+            candidate_id=model.candidate_id,
+            migration_id=model.migration_id,
+            version=model.version,
+            sql_text=model.sql_text,
+            source=model.source,
+            parent_version_id=model.parent_version_id,
+            preflight_status=model.preflight_status,
+            preflight_summary=preflight_summary,
+            is_active=True,
+            created_at=model.created_at.isoformat()
+        )
+
+def save_candidate(candidate: SQLCandidateVersion) -> None:
+    with get_db_session() as session:
+        model = session.query(SQLCandidateVersionModel).filter_by(candidate_id=candidate.candidate_id).first()
+        if model:
+            model.preflight_status = candidate.preflight_status
+            if candidate.preflight_summary:
+                model.preflight_summary_json = candidate.preflight_summary.model_dump_json()
+            session.commit()
+
+def create_source_candidate_version(migration_id: str, sql_text: str, origin: str, dialect: str) -> SQLSourceCandidateVersion:
+    with get_db_session() as session:
+        latest = session.query(SQLSourceCandidateVersionModel).filter_by(migration_id=migration_id).order_by(SQLSourceCandidateVersionModel.version.desc()).first()
+        version = (latest.version + 1) if latest else 1
+
+        session.query(SQLSourceCandidateVersionModel).filter_by(migration_id=migration_id).update({"is_active": 0})
+        
+        cand_id = f"SRC-{uuid.uuid4().hex[:8].upper()}"
+        
+        new_model = SQLSourceCandidateVersionModel(
+            candidate_id=cand_id,
+            migration_id=migration_id,
+            version=version,
+            sql_text=sql_text,
+            origin=origin,
+            dialect=dialect,
+            is_active=1
+        )
+        session.add(new_model)
+        session.commit()
+        
+        return SQLSourceCandidateVersion(
+            candidate_id=cand_id,
+            migration_id=migration_id,
+            version=version,
+            sql_text=sql_text,
+            origin=origin,
+            dialect=dialect,
+            is_active=True,
+            created_at=new_model.created_at.isoformat()
+        )
+
+def get_active_source_candidate(migration_id: str) -> SQLSourceCandidateVersion | None:
+    with get_db_session() as session:
+        model = session.query(SQLSourceCandidateVersionModel).filter_by(migration_id=migration_id, is_active=1).first()
+        if not model:
+            return None
+        preflight_summary = None
+        if model.preflight_summary_json:
+            preflight_summary = PreflightSummary.model_validate_json(model.preflight_summary_json)
+        return SQLSourceCandidateVersion(
+            candidate_id=model.candidate_id,
+            migration_id=model.migration_id,
+            version=model.version,
+            sql_text=model.sql_text,
+            origin=model.origin,
+            dialect=model.dialect,
+            preflight_status=model.preflight_status,
+            preflight_summary=preflight_summary,
+            is_active=True,
+            created_at=model.created_at.isoformat()
+        )
+
+def save_source_candidate(candidate: SQLSourceCandidateVersion) -> None:
+    with get_db_session() as session:
+        model = session.query(SQLSourceCandidateVersionModel).filter_by(candidate_id=candidate.candidate_id).first()
+        if model:
+            model.preflight_status = candidate.preflight_status
+            if candidate.preflight_summary:
+                model.preflight_summary_json = candidate.preflight_summary.model_dump_json()
+            session.commit()

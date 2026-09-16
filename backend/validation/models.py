@@ -78,6 +78,7 @@ class ValidationReport(BaseModel):
 
     validation_id: str
     migration_id: str | None = None
+    candidate_id: str | None = None
     source_execution_id: str
     target_execution_id: str
     dataset_id: str | None = None

@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, AlertTriangle, XCircle, MinusCircle, Clock } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, MinusCircle, Clock, HelpCircle } from 'lucide-react';
 import type { MigrationFinalStatus, MigrationState } from '../types/migration';
 
 interface StatusBadgeProps {
@@ -33,6 +33,12 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, label }) => {
     case 'BLOCKED_PROVIDER_LIMIT':
       styleClass = 'status-provider-limit';
       icon = <AlertTriangle size={14} />;
+      break;
+
+    case 'INCONCLUSIVE':
+    case 'UNSUPPORTED_CAPABILITY':
+      styleClass = 'status-inconclusive';
+      icon = <HelpCircle size={14} />;
       break;
 
     case 'FAILED':

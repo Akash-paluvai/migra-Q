@@ -33,11 +33,30 @@ const STEP_DEFINITIONS: StepDefinition[] = [
     getStatus: () => ({ state: 'SUCCESS' }),
   },
   {
+    id: 'SOURCE_PREFLIGHT',
+    label: 'Source Preflight',
+    getStatus: (_curState, rep) => {
+      if (!rep) return { state: 'NOT_STARTED' };
+      if (!rep.preflight_summary) {
+        // If we have translation summary or beyond, it passed (or was skipped in older versions)
+        if (rep.translation_summary) return { state: 'SUCCESS' };
+        return { state: 'NOT_RUN', badgeText: 'NOT RUN' };
+      }
+      if (rep.preflight_summary.status === 'PASS') return { state: 'SUCCESS' };
+      return { state: 'BLOCKED', badgeText: 'BLOCKED' };
+    },
+  },
+  {
     id: 'TRANSLATE',
     label: 'Translate',
     getStatus: (curState, rep) => {
       if (curState === 'TRANSLATING') return { state: 'RUNNING' };
-      if (!rep || !rep.translation_summary) return { state: 'NOT_STARTED' };
+      if (!rep || !rep.translation_summary) {
+         if (rep && rep.preflight_summary && rep.preflight_summary.status !== 'PASS') {
+             return { state: 'NOT_RUN', badgeText: 'BLOCKED' };
+         }
+         return { state: 'NOT_STARTED' };
+      }
       const status = rep.translation_summary.status?.toUpperCase();
       if (status === 'SUCCESS') return { state: 'SUCCESS' };
       return { state: 'FAILED', badgeText: status || 'FAILED' };
@@ -71,8 +90,16 @@ const STEP_DEFINITIONS: StepDefinition[] = [
       if (!rep.execution_summary) return { state: 'NOT_RUN', badgeText: 'NOT RUN' };
       const srcOk = rep.execution_summary.source_status === 'SUCCESS';
       const tgtOk = rep.execution_summary.target_status === 'SUCCESS';
+      const srcSandboxLimitation = rep.execution_summary.source_status === 'SANDBOX_LIMITATION';
+      const tgtSandboxLimitation = rep.execution_summary.target_status === 'SANDBOX_LIMITATION';
+      const srcTargetUnsupported = rep.execution_summary.source_status === 'TARGET_CAPABILITY_UNSUPPORTED';
+      const tgtTargetUnsupported = rep.execution_summary.target_status === 'TARGET_CAPABILITY_UNSUPPORTED';
       if (srcOk && tgtOk) return { state: 'SUCCESS' };
-      return { state: 'FAILED', badgeText: 'FAILED' };
+      if (srcTargetUnsupported || tgtTargetUnsupported) return { state: 'FAILED', badgeText: 'UNSUPPORTED' };
+      if (srcSandboxLimitation || tgtSandboxLimitation) return { state: 'BLOCKED', badgeText: 'SANDBOX LIMITED' };
+      if (!srcOk && tgtOk) return { state: 'FAILED', badgeText: 'SOURCE FAILED' };
+      if (srcOk && !tgtOk) return { state: 'FAILED', badgeText: 'TARGET FAILED' };
+      return { state: 'FAILED', badgeText: 'BOTH FAILED' };
     },
   },
   {
@@ -142,6 +169,7 @@ const STEP_DEFINITIONS: StepDefinition[] = [
       const finalStatus = rep.final_status?.toUpperCase();
       if (finalStatus === 'VERIFIED') return { state: 'SUCCESS', badgeText: 'VERIFIED' };
       if (finalStatus === 'BLOCKED') return { state: 'BLOCKED', badgeText: 'BLOCKED' };
+      if (finalStatus === 'INCONCLUSIVE') return { state: 'BLOCKED', badgeText: 'INCONCLUSIVE' };
       if (finalStatus === 'FAILED' || finalStatus === 'ERROR') return { state: 'FAILED', badgeText: 'FAILED' };
       return { state: 'RUNNING' };
     },
